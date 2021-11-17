@@ -30,41 +30,92 @@ if(NEED_PREPROCESS):
     train_data = prep.train_data
 else:
     train_data = np.load(os.path.join(INPUT_DIR,'train.npy'))
+    validation_data = np.load(os.path.join(INPUT_DIR,'validation.npy'))
+    attack_data = np.load(os.path.join(INPUT_DIR,'Web_Shell.npy'))
 
 # Hyperparameters
-EPOCHS = 20 # epoch
+EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
-BATCH_SIZE = 100 # batch size for training
+BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256
 DROP_OUT = 0.0
-VEC_LEN = 1
+VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+LOG_INTERVAL = 100 # log interval of printing message
 
-# training setting
+# model setting
 ae_model = AE().to(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(ae_model.parameters(), lr=LR)
-dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
 
 # training
-loss_list = []
-for epoch in range(EPOCHS):
-    loss = 0
-    for i, x in enumerate(dataloader):
+# train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
+# loss_list = []
+# for epoch in range(EPOCHS):
+#     loss = 0
+#     for i, x in enumerate(train_dataloader):
+#         # feed forward
+#         x = x.float()
+#         x = x.view(-1, SEQ_LEN, VEC_LEN)
+#         x = x.to(device)
+#         result = ae_model(x)
+        
+#         # backpropagation
+#         x = x.view(-1,SEQ_LEN)
+#         loss = criterion(result, x)
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+        
+#         # print progress
+#         if(i % LOG_INTERVAL == 0):
+#             print('Epoch {}({}/{}), loss = {}'.format(epoch+1,i,len(train_data)//LOG_INTERVAL,loss))
+#         loss_list.append(loss)
+#     print('=== epoch: {}, loss: {} ==='.format(epoch,loss))
+# torch.save(ae_model.state_dict(), "./weight.pth")
+
+
+# validation
+# ae_model.eval()
+# validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=True)
+# validation_loss = 0
+# validation_loss_list = []
+# with torch.no_grad():
+#     for i, x in enumerate(validation_dataloader):
+#         # feed forward
+#         x = x.float()
+#         x = x.view(-1, SEQ_LEN, VEC_LEN)
+#         x = x.to(device)
+#         result = ae_model(x)
+        
+#         # calculate loss
+#         x = x.view(-1,SEQ_LEN)
+#         validation_loss = criterion(result, x)
+#         validation_loss_list.append(validation_loss.item())
+        
+#         # print progress
+#         if(i % LOG_INTERVAL == 0):
+#             print('{}/{}, loss = {}'.format(i,len(validation_data)//LOG_INTERVAL,validation_loss))
+#     print(sum(validation_loss_list)/len(validation_loss_list))
+
+# test attack data
+ae_model.eval()
+attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=True)
+attack_loss = 0
+attack_loss_list = []
+with torch.no_grad():
+    for i, x in enumerate(attack_dataloader):
         # feed forward
         x = x.float()
         x = x.view(-1, SEQ_LEN, VEC_LEN)
         x = x.to(device)
         result = ae_model(x)
         
-        # backpropagation
+        # calculate loss
         x = x.view(-1,SEQ_LEN)
-        loss = criterion(result, x)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        attack_loss = criterion(result, x)
+        attack_loss_list.append(attack_loss.item())
         
         # print progress
-        if(i % 100 == 0):
-            print('Epoch {}({}/{}), loss = {}'.format(epoch,i,len(train_data)//100,loss))
-        loss_list.append(loss)
-    print('epoch: {}, loss: {}'.format(epoch,loss))
+        if(i % LOG_INTERVAL == 0):
+            print('{}/{}, loss = {}'.format(i,len(attack_data)//LOG_INTERVAL,attack_loss))
+    print(sum(attack_loss_list)/len(attack_loss_list))
