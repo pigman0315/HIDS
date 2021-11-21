@@ -12,11 +12,11 @@ from model import AE # import from "./model.py"
 
 # Global Variables
 INPUT_DIR = "/home/vincent/Desktop/research/ADFA-LD"
-NEED_PREPROCESS = True
-SEQ_LEN = 1024 # n-gram length
+NEED_PREPROCESS = False
+SEQ_LEN = 20 # n-gram length
 TOTAL_SYSCALL_NUM = 334
 EPOCHS = 10 # epoch
-LR = 0.0005  # learning rate
+LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
 DROP_OUT = 0.0
@@ -114,24 +114,24 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    ae_model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
+    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(ae_model.parameters(), lr=LR)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
 
     # preprocess data
     if(NEED_PREPROCESS):
         preprocess_data()
 
     # train
-    train(ae_model)
+    train(model)
 
     # validation
-    validation(ae_model)
+    validation(model)
 
     # test attack data
     attack_list = ['Adduser', 'Hydra_FTP', 'Hydra_SSH', 'Java_Meterpreter', 'Meterpreter', 'Web_Shell']
     for attack_type in attack_list:
-        test_attack_data(ae_model,attack_type=attack_type)
+        test_attack_data(model,attack_type=attack_type)
     
     # test model
     #ae_model(torch.randn((48,20,1)).to(device))

@@ -230,3 +230,61 @@ class MemAE(nn.Module):
         fc_out = self.tdd(dc_out)
         
         return fc_out, atten_weight
+
+# Convolution Memory-augmented AutoEncoder
+class CMAE(nn.Module):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0,shrink_thres=0.0025,mem_dim=256):
+        super(CMAE,self).__init__()
+        self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        
+        # encoder
+        self.encoder = nn.Sequential(
+            nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(in_channels=self.hidden_size, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size//4, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//4),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+
+         # Memory module
+        self.mem_module = MemModule(mem_dim=mem_dim, fea_dim=hidden_size//4, shrink_thres=shrink_thres)
+        
+        # decoder
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose1d(in_channels=self.hidden_size//4, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
+        )
+        # fully-connected layer
+        self.fc = nn.Linear(hidden_size, vec_len)
+        self.tdd = TimeDistributed(self.fc,batch_first=True)
+
+    def forward(self,x):
+        # encode
+        x = x.permute(0,2,1)
+        #print(x.shape)
+        x = self.encoder(x)
+        #print(x.shape)
+
+        # memory module
+        z, atten_weight = self.mem_module(x)
+        #print(z.shape)
+
+        # decode
+        out = self.decoder(z)
+        #print(out.shape)
+        out = out.permute(0,2,1)
+
+        # fully-connect
+        #fc_out = torch.sigmoid(self.tdd(out)) 
+        fc_out = self.tdd(out) 
+        #print(fc_out.shape)
+        
+        return fc_out, atten_weight

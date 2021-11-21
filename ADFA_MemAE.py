@@ -8,19 +8,20 @@ from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
 from preprocess import Preprocess # import from "./preprocess.py"
-from model import MemAE # import from "./model.py"
+from model import MemAE,CMAE # import from "./model.py"
 from memory_module import EntropyLossEncap
 
 # Global Variables
 INPUT_DIR = "/home/vincent/Desktop/research/ADFA-LD"
-NEED_PREPROCESS = False
-SEQ_LEN = 5 # n-gram length
+NEED_PREPROCESS = True
+SEQ_LEN = 20 # n-gram length
+SEQ_LEN_sqrt = 12
 TOTAL_SYSCALL_NUM = 334
 EPOCHS = 10 # epoch
-LR = 0.0001  # learning rate
+LR = 0.0005  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
-DROP_OUT = 0.2
+DROP_OUT = 0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 ENTROPY_LOSS_WEIGHT = 0.0002
@@ -45,10 +46,12 @@ def train(model):
             # feed forward
             x = x.float()
             x = x.view(-1, SEQ_LEN, VEC_LEN)
+            #x = x.view(-1, SEQ_LEN_sqrt,SEQ_LEN_sqrt)
             x = x.to(device)
             result, atten_weight = model(x)
             
             # backpropagation
+            x = x.view(-1,SEQ_LEN,VEC_LEN)
             reconstr_loss = criterion(result, x)
             entropy_loss = entropy_loss_func(atten_weight)
             loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
@@ -80,10 +83,12 @@ def validation(model):
             # feed forward
             x = x.float()
             x = x.view(-1, SEQ_LEN, VEC_LEN)
+            #x = x.view(-1, SEQ_LEN_sqrt, SEQ_LEN_sqrt)
             x = x.to(device)
             result,atten_weight = model(x)
             
             # calculate loss
+            x = x.view(-1,SEQ_LEN,VEC_LEN)
             reconstr_loss = criterion(result, x)
             entropy_loss = entropy_loss_func(atten_weight)
             loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
@@ -106,10 +111,12 @@ def test_attack_data(model,attack_type='Adduser'):
             # feed forward
             x = x.float()
             x = x.view(-1, SEQ_LEN, VEC_LEN)
+            #x = x.view(-1, SEQ_LEN_sqrt, SEQ_LEN_sqrt)
             x = x.to(device)
             result,atten_weight = model(x)
             
             # calculate loss
+            x = x.view(-1,SEQ_LEN,VEC_LEN)
             reconstr_loss = criterion(result, x)
             entropy_loss = entropy_loss_func(atten_weight)
             loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
@@ -125,7 +132,7 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    model = MemAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
+    model = CMAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     criterion = nn.MSELoss().to(device)
     entropy_loss_func = EntropyLossEncap().to(device)
     optimizer = optim.Adam(model.parameters(), lr=LR)
