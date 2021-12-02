@@ -114,7 +114,7 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
+    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
 
