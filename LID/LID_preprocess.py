@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 
 class Preprocess:
-    def __init__(self,seq_len=20,train_ratio=0.3):
+    def __init__(self,seq_len=20,train_ratio=0.2):
         self.seq_len = seq_len
         self.train_ratio = train_ratio
 
@@ -12,9 +12,6 @@ class Preprocess:
         return
     
     def process_data(self,dir_path):
-        # skip event type list
-        skip_envtype_list = ['switch','procexit']
-
         # read syscall list
         syscall_num_map = {}
         f = open('./syscall_list.txt')
@@ -47,7 +44,7 @@ class Preprocess:
                 features = line.split(' ')
                 cur_time = datetime.strptime(features[1][:-3],"%H:%M:%S.%f")
                 time_delta = (cur_time-start_time).total_seconds()
-                if(features[6] == '>' and time_delta > warmup_time and features[7] not in skip_envtype_list):
+                if(features[6] == '>' and time_delta > warmup_time and features[7] in syscall_num_map.keys()):
                     all_syscall_list.append(features[7])
             f.close()
             for i in range(len(all_syscall_list)-self.seq_len+1):
