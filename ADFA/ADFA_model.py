@@ -230,22 +230,22 @@ class CVAE(nn.Module):
 
 # Memory-augmented AutoEncoder
 class MemAE(nn.Module):
-    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0,shrink_thres=0.0025,mem_dim=256):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0,shrink_thres=0.0025,mem_dim=256,num_layers=1):
         super(MemAE,self).__init__()
         self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
         self.seq_len = seq_len
         self.hidden_size = hidden_size
         # encoder
-        self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)
-        self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
-        self.ec_lstm3 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size//4,batch_first=True,dropout=dropout)
+        self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout,num_layers=num_layers)
+        self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout,num_layers=num_layers)
+        self.ec_lstm3 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size//4,batch_first=True,dropout=dropout,num_layers=num_layers)
         
         # Memory module
         self.mem_module = MemModule(mem_dim=mem_dim, fea_dim=hidden_size//4, shrink_thres=shrink_thres)
 
         # decoder
-        self.dc_lstm1 = nn.LSTM(input_size=hidden_size//4,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
-        self.dc_lstm2 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size,batch_first=True,dropout=dropout)
+        self.dc_lstm1 = nn.LSTM(input_size=hidden_size//4,hidden_size=hidden_size//2,batch_first=True,dropout=dropout,num_layers=num_layers)
+        self.dc_lstm2 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size,batch_first=True,dropout=dropout,num_layers=num_layers)
         
         # fully-connected layer
         self.fc = nn.Linear(hidden_size, vec_len)

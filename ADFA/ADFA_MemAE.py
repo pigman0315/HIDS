@@ -7,26 +7,27 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
-from preprocess import Preprocess # import from "./preprocess.py"
-from model import MemAE,CMAE # import from "./model.py"
+from ADFA_preprocess import Preprocess # import from "./preprocess.py"
+from ADFA_model import MemAE,CMAE # import from "./model.py"
 from memory_module import EntropyLossEncap
 
 # Global Variables
-INPUT_DIR = "/home/vincent/Desktop/research/ADFA-LD"
-NEED_PREPROCESS = True
+INPUT_DIR = '../../ADFA-LD'
+NEED_PREPROCESS = False
 SEQ_LEN = 20 # n-gram length
 SEQ_LEN_sqrt = 12
 TOTAL_SYSCALL_NUM = 334
-EPOCHS = 20 # epoch
-LR = 0.0005  # learning rate
+EPOCHS = 30 # epoch
+LR = 0.00005  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
-DROP_OUT = 0
+DROPOUT = 0.0
+NUM_LAYERS = 2
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 ENTROPY_LOSS_WEIGHT = 0.0002
-MEM_DIM = 2000
-SHRINK_THRESHOLD = 0.0005 # 1/N ~ 3/N
+MEM_DIM = 500
+SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
  
 def preprocess_data():
     # Preprocess data (if needed)
@@ -36,7 +37,7 @@ def preprocess_data():
 
 def train(model):
     # training
-    #model.load_state_dict(torch.load('weight.pth'))
+    model.load_state_dict(torch.load('weight.pth'))
     train_data = np.load(os.path.join(INPUT_DIR,'train.npy'))
     train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
     train_loss_list = []
@@ -90,8 +91,6 @@ def validation(model):
             # calculate loss
             x = x.view(-1,SEQ_LEN,VEC_LEN)
             reconstr_loss = criterion(result, x)
-            entropy_loss = entropy_loss_func(atten_weight)
-            loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
             validation_loss_list.append(reconstr_loss.item())
             
             # print progress
@@ -118,8 +117,6 @@ def test_attack_data(model,attack_type='Adduser'):
             # calculate loss
             x = x.view(-1,SEQ_LEN,VEC_LEN)
             reconstr_loss = criterion(result, x)
-            entropy_loss = entropy_loss_func(atten_weight)
-            loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
             attack_loss_list.append(reconstr_loss.item())
             
         print('=== Attack type = {}, Avg loss = {} ==='.format(attack_type,sum(attack_loss_list)/len(attack_loss_list)))
@@ -132,6 +129,7 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
+    #model = MemAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD,num_layers=NUM_LAYERS).to(device)
     model = CMAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     criterion = nn.MSELoss().to(device)
     entropy_loss_func = EntropyLossEncap().to(device)
