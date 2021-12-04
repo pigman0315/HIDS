@@ -15,7 +15,7 @@ class Preprocess:
                    '145','146','147','148','149','150','151','152','153','154','155','156','157',
                    '159' ,'158','163','165','168','169','170','171','172','173','174' ,'175' ,'176',
                    '177','178','179','183','185','204','205' ,'213','214','215', '216' ,'222' ,'226',
-                   '227' ,'228','229','230','237','260','266','278']
+                   '227' ,'228','229','230','237','260','266','278','340']
         abstract = []
         for system_calls in range(len(traces)):
             if traces[system_calls] in filter_list:
@@ -92,7 +92,8 @@ class Preprocess:
             syscall_list = f.readline().split(' ')
             syscall_list = self.filtering_and_abstraction(syscall_list)
             for i in range(len(syscall_list)-self.seq_len):
-                syscall_seq_list.append([float(syscall)/self.total_syscall_num for syscall in syscall_list[i:i+self.seq_len]])
+                syscall_seq = [int(syscall) for syscall in syscall_list[i:i+self.seq_len]]
+                syscall_seq_list.append(np.eye(self.total_syscall_num)[syscall_seq])
         return syscall_seq_list
 
     def read_files(self,input_dir):

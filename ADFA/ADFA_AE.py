@@ -12,15 +12,15 @@ from ADFA_model import AE,CAE # import from "./model.py"
 
 # Global Variables
 INPUT_DIR = '../../ADFA-LD'
-NEED_PREPROCESS = False
+NEED_PREPROCESS = True
 SEQ_LEN = 20 # n-gram length
 TOTAL_SYSCALL_NUM = 334
-EPOCHS = 50 # epoch
+EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
 DROPOUT = 0.0
-VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+VEC_LEN = 334 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 
 def preprocess_data():
@@ -114,8 +114,8 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    #model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
-    model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    #model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
 
