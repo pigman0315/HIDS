@@ -1,17 +1,17 @@
 Using x86_64 syscall table:
-0	read
-1	write
-2	open
-3	close
-4	stat
-5	fstat
-6	lstat
-7	poll
-8	lseek
-9	mmap
-10	mprotect
-11	munmap
-12	brk
+0	read    read from a file descriptor
+1	write   write to a file descriptor
+2	open    open and possibly create a file
+3	close   close a file descriptor
+4	stat    get file status
+5	fstat   get file status
+6	lstat   get file status
+7	poll    wait for some event on a file descriptor
+8	lseek   reposition read write file offset
+9	mmap    map or unmap files or devices into memory
+10	mprotect    set protection on a region of memory
+11	munmap    map or unmap files or devices into memory
+12	brk    change data segment size
 13	rt_sigaction
 14	rt_sigprocmask
 15	rt_sigreturn

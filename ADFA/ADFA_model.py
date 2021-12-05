@@ -33,6 +33,9 @@ class AE(nn.Module):
         self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
         self.seq_len = seq_len
         self.hidden_size = hidden_size
+        # embedding
+        self.embedding = nn.EmbeddingBag(vocab_size, embed_dim, sparse=True)
+
         # encoder
         self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)
         self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
