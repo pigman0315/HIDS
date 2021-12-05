@@ -90,8 +90,11 @@ class Preprocess:
         f = open('./syscall_list.txt')
         next(f) # skip header
         for line in f.readlines():
-            tokens = line[:-1].split('\t')
+            tokens = line[:-1].split(',')
             syscall_num_map[tokens[1]] = tokens[0]
+
+        # read syscall_vec
+        syscall_vec = np.load('./syscall_vec.npz')['vec']
 
         # read run.csv
         normal_file_info_list = []
@@ -122,7 +125,7 @@ class Preprocess:
             f.close()
             all_syscall_list = self.filtering_and_abstraction(all_syscall_list)
             for i in range(len(all_syscall_list)-self.seq_len+1):
-                 normal_syscall_seq.append([float(syscall)/len(syscall_num_map) for syscall in all_syscall_list[i:i+self.seq_len]])
+                 normal_syscall_seq.append([syscall_vec[int(syscall)] for syscall in all_syscall_list[i:i+self.seq_len]])
         train_syscall_seq = normal_syscall_seq[:int(len(normal_syscall_seq)*self.train_ratio)]
         valid_syscall_seq = normal_syscall_seq[int(len(normal_syscall_seq)*self.train_ratio):]
 
@@ -149,7 +152,7 @@ class Preprocess:
             f.close()
             all_syscall_list = self.filtering_and_abstraction(all_syscall_list)
             for i in range(len(all_syscall_list)-self.seq_len+1):
-                attack_syscall_seq.append([float(syscall)/len(syscall_num_map) for syscall in all_syscall_list[i:i+self.seq_len]])
+                attack_syscall_seq.append([syscall_vec[int(syscall)] for syscall in all_syscall_list[i:i+self.seq_len]])
             
         attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
         np.save(os.path.join(dir_path,'attack'),attack_syscall_seq) # save np.array

@@ -12,12 +12,12 @@ from LID_model import CMAE
 from memory_module import EntropyLossEncap
 
 # Globla variables
-NEED_PREPROCESS = True
+NEED_PREPROCESS = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2014-0160'
+TARGET_DIR = 'Bruteforce_CWE-307'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 TRAIN_RATIO = 0.2 # ratio between size of training data and validation data
-SEQ_LEN = 1024 # n-gram length
+SEQ_LEN = 20 # n-gram length
 SEQ_LEN_sqrt = 12
 TOTAL_SYSCALL_NUM = 334
 EPOCHS = 10 # epoch
@@ -25,7 +25,7 @@ LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st layer size 
 DROPOUT = 0.0
-VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 ENTROPY_LOSS_WEIGHT = 0.0002
 MEM_DIM = 200
@@ -133,7 +133,7 @@ if __name__ == '__main__':
         prep.process_data(INPUT_DIR)
 
     # model setting
-    model = CMAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
+    model = CMAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     criterion = nn.MSELoss()
     entropy_loss_func = EntropyLossEncap().to(device)
     optimizer = optim.Adam(model.parameters(), lr=LR)

@@ -59,8 +59,8 @@ class AE(nn.Module):
         latent_vec, (hn,_)  = self.ec_lstm3(out)
         #print(latent_vec.shape)
         #print(hn.shape)
-        hn = hn.view(-1,self.vec_len,self.hidden_size//4)
-        hn = hn.repeat(1,self.seq_len,self.vec_len)
+        hn = hn.view(-1,1,self.hidden_size//4)
+        hn = hn.repeat(1,self.seq_len,1)
         #print(hn.shape)
         
         # decode

@@ -11,19 +11,19 @@ from LID_preprocess import Preprocess
 from LID_model import AE
 
 # Globla variables
-NEED_PREPROCESS = False
+NEED_PREPROCESS = True
 ROOT_DIR = '../../LID-DS/'
 TARGET_DIR = 'CVE-2014-0160'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio between size of training data and validation data
-EPOCHS = 20 # epoch
-LR = 0.00005  # learning rate
+EPOCHS = 10 # epoch
+LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
 DROP_OUT = 0.0
-VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
-LOG_INTERVAL = 10000 # log interval of printing message
+VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+LOG_INTERVAL = 1000 # log interval of printing message
 
 def train(model):
     # training
@@ -57,16 +57,14 @@ def train(model):
         torch.save(model.state_dict(), "./weight.pth")
     print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
     torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth")
-def validation(model,avg_train_loss):
+def validation(model):
     # validation
     validation_data = np.load(os.path.join(INPUT_DIR,'valid.npy'))
-    model.load_state_dict(torch.load("./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth"))
+    model.load_state_dict(torch.load('weight.pth'))
     model.eval()
-    validation_dataloader = DataLoader(validation_data, batch_size=1,shuffle=False,drop_last=True)
+    validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
     validation_loss = 0
     validation_loss_list = []
-    cnt = 0
-    alarm = 0
     with torch.no_grad():
         for i, x in enumerate(validation_dataloader):
             # feed forward
@@ -78,30 +76,19 @@ def validation(model,avg_train_loss):
             # calculate loss
             validation_loss = criterion(result, x)
             validation_loss_list.append(validation_loss.item())
-            if(validation_loss > (avg_train_loss)*1.5):
-                cnt+=1
-            else:
-                cnt -= 1
-                cnt = max(cnt,0)
-
-            # check counter
-            if(cnt > SEQ_LEN*2):
-                alarm += 1
-
-            # print some messages
+            
+            # print progress
             if(i % LOG_INTERVAL == 0):
-                print('=== Current alarms: {} ({}/{}) ==='.format(alarm,i,len(validation_data)))
-    print("Total Alarm: {}".format(alarm))
+                print('{}/{}, loss = {}'.format(i,len(validation_data)//BATCH_SIZE,validation_loss))
+        print('=== Validation Avg. Loss:',sum(validation_loss_list)/len(validation_loss_list),'===')
 # test attack data
-def test_attack_data(model,avg_train_loss):
+def test_attack_data(model):
     attack_data = np.load(os.path.join(INPUT_DIR,'attack.npy'))
-    model.load_state_dict(torch.load("./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth"))
+    model.load_state_dict(torch.load('weight.pth'))
     model.eval()
-    attack_dataloader = DataLoader(attack_data, batch_size=1,shuffle=False,drop_last=True)
+    attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
     attack_loss = 0
     attack_loss_list = []
-    cnt = 0
-    alarm = 0
     with torch.no_grad():
         for i, x in enumerate(attack_dataloader):
             # feed forward
@@ -112,20 +99,13 @@ def test_attack_data(model,avg_train_loss):
             
             # calculate loss
             attack_loss = criterion(result, x)
-            if(attack_loss > (avg_train_loss)*1.5):
-                cnt+=1
-            else:
-                cnt -= 1
-                cnt = max(cnt,0)
+            attack_loss_list.append(attack_loss.item())
 
-            # check counter
-            if(cnt > SEQ_LEN*2):
-                alarm += 1
-
-            # print some messages
+            # print progress
             if(i % LOG_INTERVAL == 0):
-                print('=== Current alarms: {} ({}/{}) ==='.format(alarm,i,len(attack_data)))
-    print("Total Alarm: {}".format(alarm))
+                print('{}/{}, loss = {}'.format(i,len(attack_data)//BATCH_SIZE,attack_loss))
+            
+        print('=== Attack avg loss = {} ==='.format(sum(attack_loss_list)/len(attack_loss_list)))
 
 
 if __name__ == '__main__':  
@@ -141,16 +121,16 @@ if __name__ == '__main__':
         prep.process_data(INPUT_DIR)
 
     # model setting
-    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
+    model = AE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
     
     # train
     train(model)
 
-    validation(model, avg_train_loss=0.001)
+    validation(model)
 
-    test_attack_data(model, avg_train_loss=0.001)
+    test_attack_data(model)
 
 
 
