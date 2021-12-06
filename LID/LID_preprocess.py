@@ -4,9 +4,10 @@ from datetime import datetime
 import numpy as np
 
 class Preprocess:
-    def __init__(self,seq_len=20,train_ratio=0.2):
+    def __init__(self,seq_len=20,train_ratio=0.2,save_file_intvl=20):
         self.seq_len = seq_len
         self.train_ratio = train_ratio
+        self.save_file_intvl = save_file_intvl
 
     def filtering_and_abstraction(self,traces): # NOT Done yet
         filter_list = ['17','20','21','22','31','32','33','34','61','62','72','73','81','85','86',
@@ -96,6 +97,10 @@ class Preprocess:
         # read syscall_vec
         syscall_vec = np.load('./syscall_vec.npz')['vec']
 
+        ######################## testing SYSCALL EMBEDDING ########################################
+        syscall_vec = np.eye(334,dtype=int)
+        ###########################################################################################
+
         # read run.csv
         normal_file_info_list = []
         attack_file_info_list = []
@@ -111,7 +116,9 @@ class Preprocess:
 
         # get normal data
         normal_syscall_seq = []
-        for file_info in normal_file_info_list:
+        train_cnt = 0
+        valid_cnt = 0
+        for file_cnt, file_info in enumerate(normal_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
             all_syscall_list = []
             start_time = datetime.strptime(f.readline().split(' ')[1][:-3],"%H:%M:%S.%f")
@@ -126,19 +133,30 @@ class Preprocess:
             all_syscall_list = self.filtering_and_abstraction(all_syscall_list)
             for i in range(len(all_syscall_list)-self.seq_len+1):
                  normal_syscall_seq.append([syscall_vec[int(syscall)] for syscall in all_syscall_list[i:i+self.seq_len]])
-        train_syscall_seq = normal_syscall_seq[:int(len(normal_syscall_seq)*self.train_ratio)]
-        valid_syscall_seq = normal_syscall_seq[int(len(normal_syscall_seq)*self.train_ratio):]
-
-        train_syscall_seq = np.array(train_syscall_seq) # list to np.array
-        valid_syscall_seq = np.array(valid_syscall_seq) # list to np.array
-        np.save(os.path.join(dir_path,'train'),train_syscall_seq) # save np.array
-        np.save(os.path.join(dir_path,'valid'),valid_syscall_seq) # save np.array
-        print(train_syscall_seq.shape)
-        print(valid_syscall_seq.shape)
+            
+            # save .npy every 'self.save_file_intvl' to prevent memory explosion
+            if((file_cnt+1) % self.save_file_intvl == 0):
+                normal_syscall_seq = np.array(normal_syscall_seq)
+                if(file_cnt < int(len(normal_file_info_list)*self.train_ratio)):
+                    np.save(os.path.join(dir_path,'train_'+str(train_cnt)),normal_syscall_seq)
+                    print('{} shape = {}'.format('train_'+str(train_cnt),normal_syscall_seq.shape))
+                    train_cnt += 1
+                else:
+                    np.save(os.path.join(dir_path,'validation_'+str(valid_cnt)),normal_syscall_seq)
+                    print('{} shape = {}'.format('validation_'+str(valid_cnt),normal_syscall_seq.shape))
+                    valid_cnt += 1
+                normal_syscall_seq = [] # clear normal_syscall_seq
+            
+        # get last normal data
+        normal_syscall_seq = np.array(normal_syscall_seq)
+        np.save(os.path.join(dir_path,'validation_'+str(valid_cnt)),normal_syscall_seq)
+        print('{} shape = {}'.format('validation_'+str(valid_cnt),normal_syscall_seq.shape))
+        normal_syscall_seq = [] # clear normal_syscall_seq
 
         # get attack data
         attack_syscall_seq = []
-        for file_info in attack_file_info_list:
+        attack_cnt = 0
+        for file_cnt,file_info in enumerate(attack_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
             all_syscall_list = []
             start_time = datetime.strptime(f.readline().split(' ')[1][:-3],"%H:%M:%S.%f")
@@ -153,7 +171,17 @@ class Preprocess:
             all_syscall_list = self.filtering_and_abstraction(all_syscall_list)
             for i in range(len(all_syscall_list)-self.seq_len+1):
                 attack_syscall_seq.append([syscall_vec[int(syscall)] for syscall in all_syscall_list[i:i+self.seq_len]])
-            
+
+            # save .npy every 'self.save_file_intvl' to prevent memory explosion
+            if((file_cnt+1) % self.save_file_intvl == 0):
+                attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
+                np.save(os.path.join(dir_path,'attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
+                print('{} shape = {}'.format('attack_'+str(attack_cnt),attack_syscall_seq.shape))
+                attack_cnt += 1
+                attack_syscall_seq = []
+        
+        # get last attack data
         attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
-        np.save(os.path.join(dir_path,'attack'),attack_syscall_seq) # save np.array
-        print(attack_syscall_seq.shape)
+        np.save(os.path.join(dir_path,'attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
+        print('{} shape = {}'.format('attack_'+str(attack_cnt),attack_syscall_seq.shape))
+        attack_syscall_seq = []
