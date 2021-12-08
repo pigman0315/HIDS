@@ -17,12 +17,12 @@ NEED_PREPROCESS = False
 SEQ_LEN = 20 # n-gram length
 SEQ_LEN_sqrt = 12
 TOTAL_SYSCALL_NUM = 334
-EPOCHS = 30 # epoch
-LR = 0.00005  # learning rate
+EPOCHS = 10 # epoch
+LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
 DROPOUT = 0.0
-NUM_LAYERS = 2
+NUM_LAYERS = 1
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 ENTROPY_LOSS_WEIGHT = 0.0002
@@ -37,7 +37,7 @@ def preprocess_data():
 
 def train(model):
     # training
-    model.load_state_dict(torch.load('weight.pth'))
+    #model.load_state_dict(torch.load('weight.pth'))
     train_data = np.load(os.path.join(INPUT_DIR,'train.npy'))
     train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
     train_loss_list = []
@@ -129,8 +129,8 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    #model = MemAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD,num_layers=NUM_LAYERS).to(device)
-    model = CMAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
+    model = MemAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD,num_layers=NUM_LAYERS).to(device)
+    #model = CMAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     criterion = nn.MSELoss().to(device)
     entropy_loss_func = EntropyLossEncap().to(device)
     optimizer = optim.Adam(model.parameters(), lr=LR)

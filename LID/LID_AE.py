@@ -12,19 +12,20 @@ from LID_model import AE
 import re
 
 # Globla variables
-NEED_PREPROCESS = False
+NEED_PREPROCESS = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2017-7529'
+TARGET_DIR = 'CVE-2018-3760'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 20
+SEQ_LEN = 5
 TRAIN_RATIO = 0.2 # ratio between size of training data and validation data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
-BATCH_SIZE = 8 # batch size for training
+BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size 
 DROP_OUT = 0.0
-VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
+SAVE_FILE_INTVL = 50 # save file interval
 
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     
     # preprocess row data into .npy file
     if(NEED_PREPROCESS):
-        prep = Preprocess(seq_len=SEQ_LEN,train_ratio=TRAIN_RATIO,save_file_intvl=20)
+        prep = Preprocess(seq_len=SEQ_LEN,train_ratio=TRAIN_RATIO,save_file_intvl=SAVE_FILE_INTVL)
         prep.process_data(INPUT_DIR)
 
     # model setting

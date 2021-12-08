@@ -86,21 +86,25 @@ class CAE(nn.Module):
         # encoder
         self.encoder = nn.Sequential(
             nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
-            nn.BatchNorm1d(self.hidden_size),
-            nn.LeakyReLU(0.2, inplace=True),
+            #nn.BatchNorm1d(self.hidden_size),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
             nn.Conv1d(in_channels=self.hidden_size, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
-            nn.BatchNorm1d(self.hidden_size//2),
-            nn.LeakyReLU(0.2, inplace=True),
+            #nn.BatchNorm1d(self.hidden_size//2),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
             nn.Conv1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size//4, kernel_size=3,padding=1),
-            nn.BatchNorm1d(self.hidden_size//4),
-            nn.LeakyReLU(0.2, inplace=True)
+            #nn.BatchNorm1d(self.hidden_size//4),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
         )
         
         # decoder
         self.decoder = nn.Sequential(
             nn.ConvTranspose1d(in_channels=self.hidden_size//4, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
-            nn.BatchNorm1d(self.hidden_size//2),
-            nn.LeakyReLU(0.2, inplace=True),
+            #nn.BatchNorm1d(self.hidden_size//2),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
             nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
         )
         # fully-connected layer
@@ -117,7 +121,8 @@ class CAE(nn.Module):
         out = out.permute(0,2,1)
 
         # fully-connect
-        fc_out = self.tdd(out) 
+        #fc_out = self.tdd(out) 
+        fc_out = self.fc(out)
         
         return fc_out
 # Variational AutoEncoder
@@ -309,6 +314,9 @@ class CMAE(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
         )
+        # GRU layer
+        self.gru = nn.GRU(input_size=hidden_size,hidden_size=hidden_size,batch_first=True,dropout=dropout)
+
         # fully-connected layer
         self.fc = nn.Linear(hidden_size, vec_len)
         self.tdd = TimeDistributed(self.fc,batch_first=True)
@@ -316,22 +324,20 @@ class CMAE(nn.Module):
     def forward(self,x):
         # encode
         x = x.permute(0,2,1)
-        #print(x.shape)
         x = self.encoder(x)
-        #print(x.shape)
 
         # memory module
         z, atten_weight = self.mem_module(x)
-        #print(z.shape)
 
         # decode
         out = self.decoder(z)
-        #print(out.shape)
         out = out.permute(0,2,1)
 
+        # gru
+        out,_ = self.gru(out)
+
         # fully-connect
-        #fc_out = torch.sigmoid(self.tdd(out)) 
+        #fc_out = self.fc(out)
         fc_out = self.tdd(out) 
-        #print(fc_out.shape)
         
         return fc_out, atten_weight

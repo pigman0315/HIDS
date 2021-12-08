@@ -12,8 +12,8 @@ from ADFA_model import AE,CAE # import from "./model.py"
 
 # Global Variables
 INPUT_DIR = '../../ADFA-LD'
-NEED_PREPROCESS = True
-SEQ_LEN = 20 # n-gram length
+NEED_PREPROCESS = False
+SEQ_LEN = 10 # n-gram length
 TOTAL_SYSCALL_NUM = 334
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -114,8 +114,8 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
-    #model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    #model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
 
