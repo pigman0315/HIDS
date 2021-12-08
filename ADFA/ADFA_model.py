@@ -34,7 +34,7 @@ class AE(nn.Module):
         self.seq_len = seq_len
         self.hidden_size = hidden_size
         # embedding
-        self.embedding = nn.EmbeddingBag(vocab_size, embed_dim, sparse=True)
+        
 
         # encoder
         self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)

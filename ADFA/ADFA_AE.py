@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import statistics as st
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,9 +13,9 @@ from ADFA_model import AE,CAE # import from "./model.py"
 
 # Global Variables
 INPUT_DIR = '../../ADFA-LD'
-NEED_PREPROCESS = False
+NEED_PREPROCESS = True
 SEQ_LEN = 10 # n-gram length
-TOTAL_SYSCALL_NUM = 334
+TOTAL_SYSCALL_NUM = 340
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
@@ -58,7 +59,7 @@ def train(model):
                 train_loss_list.append(loss.item())
         print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
         torch.save(model.state_dict(), "./weight.pth")
-    print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
+    print('=== Train Avg. Loss: {}, std: {} ==='.format(sum(train_loss_list)/len(train_loss_list),st.pstdev(train_loss_list)))
 
 def validation(model):
     # validation
@@ -81,11 +82,11 @@ def validation(model):
             validation_loss_list.append(validation_loss.item())
             
             # print progress
-            if(i % LOG_INTERVAL == 0):
-                print('{}/{}, loss = {}'.format(i,len(validation_data)//BATCH_SIZE,validation_loss))
-        print('=== Validation Avg. Loss:',sum(validation_loss_list)/len(validation_loss_list),'===')
+            #if(i % LOG_INTERVAL == 0):
+               #print('{}/{}, loss = {}'.format(i,len(validation_data)//BATCH_SIZE,validation_loss))
+        print('=== Validation Avg. Loss: {}, std: {} ==='.format(sum(validation_loss_list)/len(validation_loss_list),st.pstdev(validation_loss_list)))
 # test attack data
-def test_attack_data(model,attack_type='Adduser'):
+def test_attack_data(model,attack_type):
     attack_data = np.load(os.path.join(INPUT_DIR,attack_type+'.npy'))
     model.load_state_dict(torch.load('weight.pth'))
     model.eval()
@@ -104,7 +105,7 @@ def test_attack_data(model,attack_type='Adduser'):
             attack_loss = criterion(result, x)
             attack_loss_list.append(attack_loss.item())
             
-        print('=== Attack type = {}, Avg loss = {} ==='.format(attack_type,sum(attack_loss_list)/len(attack_loss_list)))
+        print('=== Attack type = {}, Avg loss = {}, std = {} ==='.format(attack_type,sum(attack_loss_list)/len(attack_loss_list),st.pstdev(attack_loss_list)))
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -114,8 +115,8 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
-    #model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    #model = CAE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
+    model = AE(seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE,dropout=DROPOUT).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LR)
 

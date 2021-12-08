@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import statistics as st
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,7 +15,7 @@ from ADFA_model import VAE # import from "./model.py"
 INPUT_DIR = '../../ADFA-LD'
 NEED_PREPROCESS = False
 SEQ_LEN = 10 # n-gram length
-TOTAL_SYSCALL_NUM = 334
+TOTAL_SYSCALL_NUM = 340
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
@@ -65,7 +66,7 @@ def train(model):
                 train_loss_list.append(reconstruct_loss.item())
         print('=== epoch: {}, recon. loss: {}, KL div: {} ==='.format(epoch+1,reconstruct_loss,kl_div))
         torch.save(model.state_dict(), "./weight.pth")
-    print('=== Train Avg. Loss:',sum(train_loss_list)/(len(train_loss_list)),'===')
+    print('=== Train Avg. Loss: {}, std: {} ==='.format(sum(train_loss_list)/len(train_loss_list),st.pstdev(train_loss_list)))
     
 
 def validation(model):
@@ -91,9 +92,9 @@ def validation(model):
             validation_loss_list.append(reconstruct_loss.item())
             
             # print progress
-            if(i % LOG_INTERVAL == 0):
-                print('{}/{},recon. loss: {}, KL div: {}'.format(i,len(validation_data)//BATCH_SIZE,reconstruct_loss,kl_div))
-        print('=== Validation Avg. Loss:',sum(validation_loss_list)/(len(validation_loss_list)),'===')
+            #if(i % LOG_INTERVAL == 0):
+                #print('{}/{},recon. loss: {}, KL div: {}'.format(i,len(validation_data)//BATCH_SIZE,reconstruct_loss,kl_div))
+        print('=== Validation Avg. Loss: {}, std: {} ==='.format(sum(validation_loss_list)/len(validation_loss_list),st.pstdev(validation_loss_list)))
 # test attack data
 def test_attack_data(model,attack_type='Adduser'):
     attack_data = np.load(os.path.join(INPUT_DIR,attack_type+'.npy'))
@@ -116,7 +117,7 @@ def test_attack_data(model,attack_type='Adduser'):
             attack_loss = reconstruct_loss+kl_div*LAMBDA
             attack_loss_list.append(reconstruct_loss.item())
 
-        print('=== Attack type = {}, Avg loss = {:.10f} ==='.format(attack_type,sum(attack_loss_list)/(len(attack_loss_list))))
+        print('=== Attack type = {}, Avg loss = {}, std = {} ==='.format(attack_type,sum(attack_loss_list)/len(attack_loss_list),st.pstdev(attack_loss_list)))
 
 if __name__ == '__main__':  
     # Check if using GPU

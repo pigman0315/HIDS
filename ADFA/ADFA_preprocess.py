@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 class Preprocess:
-    def __init__(self,seq_len=20,total_syscall_num=264):
+    def __init__(self,seq_len=20,total_syscall_num=340):
         # sequence length of syscalls(sliding window size)
         self.seq_len = seq_len
         self.total_syscall_num = total_syscall_num
