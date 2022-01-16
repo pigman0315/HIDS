@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import time
 import statistics as st
 import torch
 import torch.nn as nn
@@ -14,7 +15,8 @@ from ADFA_model import VAE # import from "./model.py"
 # Global Variables
 INPUT_DIR = '../../ADFA-LD'
 NEED_PREPROCESS = False
-SEQ_LEN = 10 # n-gram length
+NEED_TRAIN = False
+SEQ_LEN = 20 # n-gram length
 TOTAL_SYSCALL_NUM = 340
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -35,7 +37,6 @@ def train(model):
     # training
     train_data = np.load(os.path.join(INPUT_DIR,'train.npy'))
     train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=LR, 
                                             steps_per_epoch=int(len(train_dataloader)),
                                             epochs=EPOCHS,
@@ -86,10 +87,11 @@ def validation(model):
             result, mean, log_var = model(x)
             
             # calculate loss
-            reconstruct_loss = criterion(result, x)
-            kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
-            validation_loss = reconstruct_loss+kl_div*LAMBDA
-            validation_loss_list.append(reconstruct_loss.item())
+            validation_loss = criterion(result, x)
+            validation_loss = validation_loss.view(-1,SEQ_LEN).to('cpu')
+            for vl in validation_loss:
+                vl = vl.tolist()
+                validation_loss_list.append(sum(vl))
             
             # print progress
             #if(i % LOG_INTERVAL == 0):
@@ -112,10 +114,11 @@ def test_attack_data(model,attack_type='Adduser'):
             result, mean, log_var = model(x)
             
             # calculate loss
-            reconstruct_loss = criterion(result, x)
-            kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
-            attack_loss = reconstruct_loss+kl_div*LAMBDA
-            attack_loss_list.append(reconstruct_loss.item())
+            attack_loss = criterion(result, x)
+            attack_loss = attack_loss.view(-1,SEQ_LEN).to('cpu')
+            for al in attack_loss:
+                al = al.tolist()
+                attack_loss_list.append(sum(al))
 
         print('=== Attack type = {}, Avg loss = {}, std = {} ==='.format(attack_type,sum(attack_loss_list)/len(attack_loss_list),st.pstdev(attack_loss_list)))
 
@@ -127,24 +130,34 @@ if __name__ == '__main__':
     print("Currently using GPU:",torch.cuda.get_device_name(0))
 
     # model setting
-    model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
-    #criterion = nn.BCELoss(reduction='sum')
-    criterion = nn.MSELoss(reduction='sum')
+    model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,dropout=DROP_OUT).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
 
-    # preprocess data
-    if(NEED_PREPROCESS):
-        preprocess_data()
+    if(NEED_TRAIN == True):
+        criterion = nn.MSELoss(reduction='sum')
 
-    # train
-    train(model)
+        # preprocess data
+        if(NEED_PREPROCESS):
+            preprocess_data()
 
-    # validation
-    validation(model)
+        # train
+        start = time.time()
+        train(model)
+        end = time.time()
+        print('Cost time: {} mins {} secs'.format((end-start)/60,(end-start)%60))
 
-    # test attack data
-    attack_list = ['Adduser', 'Hydra_FTP', 'Hydra_SSH', 'Java_Meterpreter', 'Meterpreter', 'Web_Shell']
-    for attack_type in attack_list:
-        test_attack_data(model,attack_type=attack_type)
+    elif(NEED_TRAIN == False):
+        criterion = nn.MSELoss(reduction='none')
 
+        # validation
+        start = time.time()
+        validation(model)
+
+        # test attack data
+        attack_list = ['Adduser', 'Hydra_FTP', 'Hydra_SSH', 'Java_Meterpreter', 'Meterpreter', 'Web_Shell']
+        for attack_type in attack_list:
+            test_attack_data(model,attack_type=attack_type)
+        end = time.time()
+        print('Cost time: {} mins {} secs'.format((end-start)/60,(end-start)%60))
     # test model
     #vae_model(torch.randn((48,20,1)).to(device))

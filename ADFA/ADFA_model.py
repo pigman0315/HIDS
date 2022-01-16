@@ -86,26 +86,22 @@ class CAE(nn.Module):
         # encoder
         self.encoder = nn.Sequential(
             nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
-            #nn.BatchNorm1d(self.hidden_size),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
+            nn.BatchNorm1d(self.hidden_size),
+            nn.LeakyReLU(0.2, inplace=True),
             nn.Conv1d(in_channels=self.hidden_size, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
-            #nn.BatchNorm1d(self.hidden_size//2),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
             nn.Conv1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size//4, kernel_size=3,padding=1),
-            #nn.BatchNorm1d(self.hidden_size//4),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
+            nn.BatchNorm1d(self.hidden_size//4),
+            nn.LeakyReLU(0.2, inplace=True),
         )
         
         # decoder
         self.decoder = nn.Sequential(
             nn.ConvTranspose1d(in_channels=self.hidden_size//4, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
-            #nn.BatchNorm1d(self.hidden_size//2),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3,padding=1,stride=1),
-            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1)
         )
         # fully-connected layer
         self.fc = nn.Linear(hidden_size, vec_len)
@@ -121,8 +117,8 @@ class CAE(nn.Module):
         out = out.permute(0,2,1)
 
         # fully-connect
-        #fc_out = self.tdd(out) 
-        fc_out = self.fc(out)
+        fc_out = self.tdd(out) 
+        #fc_out = self.fc(out)
         
         return fc_out
 # Variational AutoEncoder
@@ -136,13 +132,15 @@ class VAE(nn.Module):
         # encoder
         self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)
         self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
+        self.ec_lstm3 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size//4,batch_first=True,dropout=dropout)
         
         # mean and standard deviation
-        self.mean_fc = nn.Linear(hidden_size//2,hidden_size//2)
-        self.logv_fc = nn.Linear(hidden_size//2,hidden_size//2)
+        self.mean_fc = nn.Linear(hidden_size//4,hidden_size//4)
+        self.logv_fc = nn.Linear(hidden_size//4,hidden_size//4)
         
         # decoder
-        self.dc_lstm1 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size,batch_first=True,dropout=dropout)
+        self.dc_lstm1 = nn.LSTM(input_size=hidden_size//4,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
+        self.dc_lstm2 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size,batch_first=True,dropout=dropout)
         
         # fully-connected layer
         self.fc = nn.Linear(hidden_size, vec_len)
@@ -152,8 +150,11 @@ class VAE(nn.Module):
         # encode
         out, _ = self.ec_lstm1(x)
         out = F.relu(out)
-        out, (hn,_) = self.ec_lstm2(out)
-        hn = hn.view(-1,self.vec_len,self.hidden_size//2)
+        out, _ = self.ec_lstm2(out)
+        out = F.relu(out)
+        out, (hn,_) = self.ec_lstm3(out)
+        hn = hn.view(-1,1,self.hidden_size//4)
+        hn = hn.repeat(1,self.seq_len,1)
 
         # reparameter
         mean = self.mean_fc(hn)
@@ -161,10 +162,11 @@ class VAE(nn.Module):
         std = torch.exp(log_var/2)
         eps = torch.randn_like(std)
         z = mean + eps*std
-        z = z.repeat(1,self.seq_len,self.vec_len)
 
         # decode
         out, _ = self.dc_lstm1(z)
+        out = F.relu(out)
+        out, _ = self.dc_lstm2(out)
         out = F.relu(out)
 
         # fully-connect
@@ -270,7 +272,7 @@ class MemAE(nn.Module):
         latent_vec = latent_vec.permute(0,2,1)
         z, atten_weight = self.mem_module(latent_vec)
         z = z.permute(0,2,1)
-        atten_weight = atten_weight.permute(0,2,1)
+        #atten_weight = atten_weight.permute(0,2,1)
 
         # decode
         out, _ = self.dc_lstm1(z)
@@ -301,7 +303,7 @@ class CMAE(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size//4, kernel_size=3,padding=1),
             nn.BatchNorm1d(self.hidden_size//4),
-            nn.LeakyReLU(0.2, inplace=True)
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
          # Memory module
@@ -312,7 +314,7 @@ class CMAE(nn.Module):
             nn.ConvTranspose1d(in_channels=self.hidden_size//4, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
             nn.BatchNorm1d(self.hidden_size//2),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
+            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1)
         )
         # GRU layer
         self.gru = nn.GRU(input_size=hidden_size,hidden_size=hidden_size,batch_first=True,dropout=dropout)
@@ -334,7 +336,7 @@ class CMAE(nn.Module):
         out = out.permute(0,2,1)
 
         # gru
-        out,_ = self.gru(out)
+        #out,_ = self.gru(out)
 
         # fully-connect
         #fc_out = self.fc(out)

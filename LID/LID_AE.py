@@ -8,16 +8,17 @@ from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
-from LID_model import AE
+from LID_model import AE,CAE
 import re
 
 # Globla variables
 NEED_PREPROCESS = True
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2018-3760'
+TARGET_DIR = 'CVE-2012-2122'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 5
-TRAIN_RATIO = 0.2 # ratio between size of training data and validation data
+SEQ_LEN = 20
+TRAIN_RATIO = 0.3 # ratio between size of training data and validation data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
@@ -25,16 +26,19 @@ HIDDEN_SIZE = 256 # encoder's 1st lstm layer hidden size
 DROP_OUT = 0.0
 VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
-SAVE_FILE_INTVL = 50 # save file interval
+SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
 
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
     find_pattern = re.compile(rf"{type}_[0-9]*\.npy") # $type_
     npy_list = find_pattern.findall(' '.join(file_list))
-    print(npy_list)
+    #print(npy_list)
     return npy_list
 
 def train(model):
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+    criterion = nn.MSELoss()
+
     # get train_*.npy file list
     npy_list = get_npy_list(type='train')
 
@@ -63,26 +67,30 @@ def train(model):
                 if(i % LOG_INTERVAL == 0):
                     print('Epoch {}({}/{}), loss = {}'.format(epoch+1,i,len(train_data)//BATCH_SIZE,loss))
             
-        # record last epoch's loss
-        if(epoch == EPOCHS-1):
-            train_loss_list.append(loss.item())
+            # record last epoch's loss
+            if(epoch == EPOCHS-1):
+                train_loss_list.append(loss.item())
         print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
-        torch.save(model.state_dict(), "./weight.pth")
+    torch.save(model.state_dict(), "./weight.pth")
     print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
     torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth")
+
 def validation(model):
+    criterion = nn.MSELoss(reduction='none')
+
     # get validation_*.npy file list
     npy_list = get_npy_list(type='validation')
 
     # validation
-    validation_loss = 0
-    validation_loss_list = []
     model.load_state_dict(torch.load('weight.pth'))
     model.eval()
     with torch.no_grad():
-        for npy_file in npy_list:   
+        # for each file
+        for file_num, npy_file in enumerate(npy_list):
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
-            validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
+            validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False,drop_last=True)
+            validation_loss = 0
+            validation_loss_list = []
             for i, x in enumerate(validation_dataloader):
                 # feed forward
                 x = x.float()
@@ -92,26 +100,31 @@ def validation(model):
                 
                 # calculate loss
                 validation_loss = criterion(result, x)
-                validation_loss_list.append(validation_loss.item())
-                
-                # print progress
-                if(i % LOG_INTERVAL == 0):
-                    print('{}/{}, loss = {}'.format(i,len(validation_data)//BATCH_SIZE,validation_loss))
-    print('=== Validation Avg. Loss:',sum(validation_loss_list)/len(validation_loss_list),'===')
+                validation_loss = validation_loss.view(-1,SEQ_LEN).to('cpu')
+                for vl in validation_loss:
+                    vl = vl.tolist()
+                    validation_loss_list.append(sum(vl))
+            if((file_num+1)%100 == 0):
+                validation_loss_list.sort()
+                print('=== Top loss in validation data ===')
+                print(validation_loss_list[-5:])
+                print('===================================')
 
 def test_attack_data(model):
+    criterion = nn.MSELoss(reduction='none')
+
     # get attack_*.npy file list
     npy_list = get_npy_list(type='attack')
 
     # test attack data
-    attack_loss = 0
-    attack_loss_list = []
     model.load_state_dict(torch.load('weight.pth'))
     model.eval()
     with torch.no_grad():
-        for npy_file in npy_list:
+        for file_num, npy_file in enumerate(npy_list):
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
-            attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
+            attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False,drop_last=True)
+            attack_loss = 0
+            attack_loss_list = []
             for i, x in enumerate(attack_dataloader):
                 # feed forward
                 x = x.float()
@@ -121,13 +134,16 @@ def test_attack_data(model):
                 
                 # calculate loss
                 attack_loss = criterion(result, x)
-                attack_loss_list.append(attack_loss.item())
-
-                # print progress
-                if(i % LOG_INTERVAL == 0):
-                    print('{}/{}, loss = {}'.format(i,len(attack_data)//BATCH_SIZE,attack_loss))
-            
-        print('=== Attack avg loss = {} ==='.format(sum(attack_loss_list)/len(attack_loss_list)))
+                attack_loss = attack_loss.view(-1,SEQ_LEN).to('cpu')
+                for al in attack_loss:
+                    al = al.tolist()
+                    attack_loss_list.append(sum(al))
+             
+            if((file_num+1)%20 == 0):
+                attack_loss_list.sort()
+                print('=== Top loss in attack data ===')
+                print(attack_loss_list[-5:])
+                print('===================================')
 
 
 if __name__ == '__main__':  
@@ -140,18 +156,20 @@ if __name__ == '__main__':
     # preprocess row data into .npy file
     if(NEED_PREPROCESS):
         prep = Preprocess(seq_len=SEQ_LEN,train_ratio=TRAIN_RATIO,save_file_intvl=SAVE_FILE_INTVL)
+        prep.remove_npy(INPUT_DIR)
         prep.process_data(INPUT_DIR)
 
     # model setting
-    model = AE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=LR)
-    
-    # train
-    train(model)
+    model = CAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
 
+    if(NEED_TRAIN == True):
+        # train
+        train(model)
+    
+    # validation
     validation(model)
 
+    # test
     test_attack_data(model)
 
 
