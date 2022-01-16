@@ -24,7 +24,6 @@ class Preprocess:
         for line in f.readlines():
             tokens = line[:-1].split(',')
             syscall_num_map[tokens[1]] = tokens[0]
-
         ######################## testing SYSCALL EMBEDDING ########################################
         # read syscall_vec
         syscall_embed = np.load('./syscall_embed_16.npz')['vec']
@@ -94,22 +93,23 @@ class Preprocess:
                 features = line.split(' ')
                 cur_time = datetime.strptime(features[1][:-3],"%H:%M:%S.%f")
                 time_delta = (cur_time-start_time).total_seconds()
-                if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
+                #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
+                if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                     if(features[2] not in syscall_map.keys()): # 2: CPU#
                         syscall_map[features[2]] = []
                     syscall_map[features[2]].append(syscall_num_map[features[7]])     
-            f.close()
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
                     attack_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
                     #attack_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
             
             # save each file's syscall
-            if(len(attack_syscall_seq) > self.seq_len*2):
+            if(len(attack_syscall_seq) > self.seq_len*20):
                 attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
                 np.save(os.path.join(dir_path,'attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
                 print('{} shape = {}, {}'.format('attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
                 attack_cnt += 1
                 attack_syscall_seq = []
+            f.close()
         # print file count of each category
         print("Train_cnt: {}, Valid_cnt: {}, Attack_cnt: {}".format(train_cnt,valid_cnt,attack_cnt))
