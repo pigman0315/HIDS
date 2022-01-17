@@ -48,17 +48,19 @@ class Preprocess:
         normal_syscall_seq = []
         train_cnt = 0
         valid_cnt = 0
+        test_normal_cnt = 0
         for file_cnt, file_info in enumerate(normal_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
             syscall_map = {} # map CPU# to syscall_list
             for line in f.readlines():
                 features = line.split(' ')
-                if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
+                if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
                     if(features[2] not in syscall_map.keys()): # 2: CPU#
                         syscall_map[features[2]] = []
                     syscall_map[features[2]].append(syscall_num_map[features[7]])
             f.close()
             for key in syscall_map.keys():
+                #print(key,len(syscall_map[key]))
                 for i in range(len(syscall_map[key])-self.seq_len+1):
                     #normal_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
                     normal_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
@@ -73,14 +75,12 @@ class Preprocess:
                     print('{} shape = {}'.format('train_'+str(train_cnt),normal_syscall_seq.shape))
                     train_cnt += 1
                     normal_syscall_seq = [] # clear normal_syscall_seq
-            # validation data, save data for each file
             else:
                 normal_syscall_seq = np.array(normal_syscall_seq)
-                np.save(os.path.join(dir_path,'validation_'+str(valid_cnt)),normal_syscall_seq)
-                #print('{} shape = {}'.format('validation_'+str(valid_cnt),normal_syscall_seq.shape))
-                valid_cnt += 1
+                np.save(os.path.join(dir_path,'test_normal_'+str(test_normal_cnt)),normal_syscall_seq)
+                print('{} shape = {}'.format('test_normal_'+str(test_normal_cnt),normal_syscall_seq.shape))
+                test_normal_cnt += 1
                 normal_syscall_seq = [] # clear normal_syscall_seq
-        
         # get attack data
         attack_syscall_seq = []
         attack_cnt = 0
@@ -106,10 +106,10 @@ class Preprocess:
             # save each file's syscall
             if(len(attack_syscall_seq) > self.seq_len*20):
                 attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
-                np.save(os.path.join(dir_path,'attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
-                print('{} shape = {}, {}'.format('attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
+                np.save(os.path.join(dir_path,'test_attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
+                print('{} shape = {}, {}'.format('test_attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
                 attack_cnt += 1
                 attack_syscall_seq = []
             f.close()
         # print file count of each category
-        print("Train_cnt: {}, Valid_cnt: {}, Attack_cnt: {}".format(train_cnt,valid_cnt,attack_cnt))
+        print("Train_cnt: {},  Test_normal_cnt: {}, Test_attack_cnt: {}".format(train_cnt,test_normal_cnt,attack_cnt))
