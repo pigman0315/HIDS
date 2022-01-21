@@ -11,25 +11,6 @@ from LID_preprocess import Preprocess
 from LID_model import AE,CAE
 import re
 
-# Globla variables
-NEED_PREPROCESS = True
-NEED_TRAIN = True
-ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2014-0160'
-INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 20
-TRAIN_RATIO = 0.3 # ratio of training data in normal data
-EPOCHS = 10 # epoch
-LR = 0.0001  # learning rate
-BATCH_SIZE = 128 # batch size for training
-HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
-DROP_OUT = 0.0
-VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
-LOG_INTERVAL = 1000 # log interval of printing message
-SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 5.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
-SUSPICIOUS_THRESHOLD = 20
-
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
     find_pattern = re.compile(rf"{type}_[0-9]*\.npy") # $type_
@@ -52,7 +33,7 @@ def train(model):
             loss = 0
             for npy_file in npy_list:
                 train_data = np.load(os.path.join(INPUT_DIR,npy_file))
-                train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
+                train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
                 for i, x in enumerate(train_dataloader):
                     # feed forward
                     x = x.float()
@@ -191,13 +172,32 @@ def test(model,threshold):
                 fn += 1
     
     # show results
-    print('=== Result ===')
+    print('=== Results ===')
     print('tp = {}, tn = {}, fp = {}, fn = {}'.format(tp,tn,fp,fn))
     print('Accuracy = {}'.format((tp+tn)/(tp+tn+fp+fn)))
     print('Precision = {}'.format(tp/(tp+fp)))
     print('Recall = {}'.format(tp/(tp+fn)))
     print('F1-score = {}'.format(2*tp/(2*tp+fp+fn)))
     print('==============')
+
+# Globla variables
+NEED_PREPROCESS = False
+NEED_TRAIN = False
+ROOT_DIR = '../../LID-DS/'
+TARGET_DIR = 'CVE-2018-3760'
+INPUT_DIR = ROOT_DIR+TARGET_DIR
+SEQ_LEN = 20
+TRAIN_RATIO = 0.2 # ratio of training data in normal data
+EPOCHS = 10 # epoch
+LR = 0.0001  # learning rate
+BATCH_SIZE = 128 # batch size for training
+HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
+DROP_OUT = 0.0
+VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+LOG_INTERVAL = 1000 # log interval of printing message
+SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
+THRESHOLD_RATIO = 6.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = THRESHOLD_RATIO*10 # if suspicious count higher than this threshold then it is considered to be an attack file
 
 if __name__ == '__main__':  
     # Check if using GPU

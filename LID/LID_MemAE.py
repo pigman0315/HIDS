@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,114 +12,202 @@ from LID_preprocess import Preprocess
 from LID_model import CMAE
 from memory_module import EntropyLossEncap
 
+def get_npy_list(type):
+    file_list = os.listdir(INPUT_DIR)
+    find_pattern = re.compile(rf"{type}_[0-9]*\.npy") # $type_
+    npy_list = find_pattern.findall(' '.join(file_list))
+    #print(npy_list)
+    return npy_list
+
+def train(model):
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+    criterion = nn.MSELoss()
+    entropy_loss_func = EntropyLossEncap().to(device)
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+
+    # get train_*.npy file list
+    npy_list = get_npy_list(type='train')
+    
+    if(NEED_TRAIN):
+        # training
+        #model.load_state_dict(torch.load('weight.pth')) # get pre-trained model
+        train_loss_list = []
+        for epoch in range(EPOCHS):
+            loss = 0
+            for npy_file in npy_list:
+                train_data = np.load(os.path.join(INPUT_DIR,npy_file))
+                train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
+                for i, x in enumerate(train_dataloader):
+                    # feed forward
+                    x = x.float()
+                    x = x.view(-1, SEQ_LEN, VEC_LEN)
+                    x = x.to(device)
+                    result, atten_weight = model(x)
+            
+                    # backpropagation
+                    x = x.view(-1,SEQ_LEN,VEC_LEN)
+                    reconstr_loss = criterion(result, x)
+                    entropy_loss = entropy_loss_func(atten_weight)
+                    loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    
+                    # print progress
+                    if(i % LOG_INTERVAL == 0):
+                        print('Epoch {}({}/{}), loss = {}'.format(epoch+1,i,len(train_data)//BATCH_SIZE,loss))
+                
+                # record last epoch's loss
+                if(epoch == EPOCHS-1):
+                    train_loss_list.append(loss.item())
+            print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
+        torch.save(model.state_dict(), "./weight.pth")
+        print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
+        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth")
+
+    # get threshold to distinguish normal and attack data
+    model.load_state_dict(torch.load('weight.pth'))
+    criterion_none = nn.MSELoss(reduction='none')
+    model.eval()
+    max_loss = 0
+    with torch.no_grad():
+        for npy_file in npy_list:
+            print('Scanning {}'.format(npy_file))
+            train_data = np.load(os.path.join(INPUT_DIR,npy_file))
+            train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
+            loss_list = []
+            for i, x in enumerate(train_dataloader):
+                # feed forward
+                x = x.float()
+                x = x.view(-1, SEQ_LEN, VEC_LEN)
+                x = x.to(device)
+                result = model(x)
+
+                # calculate loss
+                loss_mat = criterion_none(result, x)
+                loss_mat = loss_mat.to('cpu')
+                for loss in loss_mat:
+                    loss_1D = torch.flatten(loss).tolist()
+                    loss_sum = sum(loss_1D)
+                    loss_list.append(loss_sum)
+            loss_list.sort()
+            max_loss = max(loss_list[-int(len(loss_list)*0.2)],max_loss)
+    threshold = max_loss*(THRESHOLD_RATIO)
+    return threshold
+
+def test(model,threshold):
+    # matrics
+    fp = 0
+    tp = 0
+    fn = 0
+    tn = 0
+
+    # model setting
+    model.load_state_dict(torch.load('weight.pth'))
+    model.eval()
+    criterion_none = nn.MSELoss(reduction='none') # loss function
+
+    with torch.no_grad():
+        npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
+        # for each file
+        for file_num, npy_file in enumerate(npy_list):
+            print('Testing {}'.format(npy_file))
+            validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
+            validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
+            suspicious_counter = 0
+            is_attack = False
+            for i, x in enumerate(validation_dataloader):
+                # feed forward
+                x = x.float()
+                x = x.view(-1, SEQ_LEN, VEC_LEN)
+                x = x.to(device)
+                result,atten_weight = model(x)
+                
+                # calculate loss
+                loss_mat = criterion_none(result, x)
+                loss_mat = loss_mat.to('cpu')
+                for loss in loss_mat:
+                    loss_1D = torch.flatten(loss).tolist()
+                    loss_sum = sum(loss_1D)
+                    if(loss_sum > threshold):
+                        suspicious_counter += 1
+                    else:
+                        suspicious_counter -= 1
+                        suspicious_counter = max(0,suspicious_counter)
+                    if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                        is_attack = True
+                        break
+            if(is_attack == True):
+                fp += 1
+            else:
+                tn += 1
+                
+    # test attack data
+    npy_list = get_npy_list(type='test_attack') # get attack_*.npy file list
+    with torch.no_grad():
+        for file_num, npy_file in enumerate(npy_list):
+            print('Testing {}'.format(npy_file))
+            attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
+            attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
+            suspicious_counter = 0
+            is_attack = False
+            for i, x in enumerate(attack_dataloader):
+                # feed forward
+                x = x.float()
+                x = x.view(-1, SEQ_LEN, VEC_LEN)
+                x = x.to(device)
+                result,atten_weight = model(x)
+                
+                # calculate loss
+                loss_mat = criterion_none(result, x)
+                loss_mat = loss_mat.to('cpu')
+                for loss in loss_mat:
+                    loss_1D = torch.flatten(loss).tolist()
+                    loss_sum = sum(loss_1D)
+                    if(loss_sum > threshold):
+                        suspicious_counter += 1
+                    else:
+                        suspicious_counter -= 1
+                        suspicious_counter = max(0,suspicious_counter)
+                    if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                        is_attack = True
+                        break
+            if(is_attack == True):
+                tp += 1
+            else:
+                fn += 1
+    
+    # show results
+    print('=== Results ===')
+    print('tp = {}, tn = {}, fp = {}, fn = {}'.format(tp,tn,fp,fn))
+    print('Accuracy = {}'.format((tp+tn)/(tp+tn+fp+fn)))
+    print('Precision = {}'.format(tp/(tp+fp)))
+    print('Recall = {}'.format(tp/(tp+fn)))
+    print('F1-score = {}'.format(2*tp/(2*tp+fp+fn)))
+    print('==============')
+
+
 # Globla variables
 NEED_PREPROCESS = False
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'Bruteforce_CWE-307'
+TARGET_DIR = 'CVE-2018-3760'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-TRAIN_RATIO = 0.2 # ratio between size of training data and validation data
-SEQ_LEN = 20 # n-gram length
-SEQ_LEN_sqrt = 12
-TOTAL_SYSCALL_NUM = 334
+SEQ_LEN = 20
+TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
-HIDDEN_SIZE = 256 # encoder's 1st layer size 
-DROPOUT = 0.0
+HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
+DROP_OUT = 0.0
 VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
+SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
+THRESHOLD_RATIO = 6.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = THRESHOLD_RATIO*10 # if suspicious count higher than this threshold then it is considered to be an attack file
 ENTROPY_LOSS_WEIGHT = 0.0002
 MEM_DIM = 200
 SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
-
-def train(model):
-    # training
-    #model.load_state_dict(torch.load('weight.pth')) # get pre-trained model
-    train_data = np.load(os.path.join(INPUT_DIR,'train.npy'))
-    train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
-    train_loss_list = []
-    for epoch in range(EPOCHS):
-        loss = 0
-        for i, x in enumerate(train_dataloader):
-            # feed forward
-            x = x.float()
-            x = x.view(-1, SEQ_LEN, VEC_LEN)
-            #x = x.view(-1, SEQ_LEN_sqrt,SEQ_LEN_sqrt)
-            x = x.to(device)
-            result, atten_weight = model(x)
-            
-            # backpropagation
-            x = x.view(-1,SEQ_LEN,VEC_LEN)
-            reconstr_loss = criterion(result, x)
-            entropy_loss = entropy_loss_func(atten_weight)
-            loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            
-            # print progress
-            if(i % LOG_INTERVAL == 0):
-                print('Epoch {}({}/{}), reconstr. loss = {}, entropy loss = {}'.format(epoch+1,i,len(train_data)//BATCH_SIZE,reconstr_loss,entropy_loss))
-            
-            # record last epoch's loss
-            if(epoch == EPOCHS-1):
-                train_loss_list.append(reconstr_loss.item())
-        print('=== epoch: {}, reconstr. loss = {}, entropy loss = {} ==='.format(epoch+1,reconstr_loss,entropy_loss))
-        torch.save(model.state_dict(), "./weight.pth")
-    print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
-
-def validation(model):
-    # validation
-    validation_data = np.load(os.path.join(INPUT_DIR,'valid.npy'))
-    #model.load_state_dict(torch.load("./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth"))
-    model.load_state_dict(torch.load('weight.pth'))
-    model.eval()
-    validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
-    loss = 0
-    validation_loss_list = []
-    with torch.no_grad():
-        for i, x in enumerate(validation_dataloader):
-            # feed forward
-            x = x.float()
-            x = x.view(-1, SEQ_LEN, VEC_LEN)
-            #x = x.view(-1, SEQ_LEN_sqrt, SEQ_LEN_sqrt)
-            x = x.to(device)
-            result,atten_weight = model(x)
-            
-            # calculate loss
-            x = x.view(-1,SEQ_LEN,VEC_LEN)
-            reconstr_loss = criterion(result, x)
-            validation_loss_list.append(reconstr_loss.item())
-            
-            # print progress
-            if(i % LOG_INTERVAL == 0):
-                print('{}/{}, loss = {}'.format(i,len(validation_data)//BATCH_SIZE,reconstr_loss))
-        print('=== Validation Avg. Loss:',sum(validation_loss_list)/len(validation_loss_list),'===')
-# test attack data
-def test_attack_data(model):
-    attack_data = np.load(os.path.join(INPUT_DIR,'attack.npy'))
-    #model.load_state_dict(torch.load("./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth"))
-    model.load_state_dict(torch.load('weight.pth'))
-    model.eval()
-    attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=True,drop_last=True)
-    attack_loss = 0
-    attack_loss_list = []
-    with torch.no_grad():
-        for i, x in enumerate(attack_dataloader):
-            # feed forward
-            x = x.float()
-            x = x.view(-1, SEQ_LEN, VEC_LEN)
-            #x = x.view(-1, SEQ_LEN_sqrt, SEQ_LEN_sqrt)
-            x = x.to(device)
-            result,atten_weight = model(x)
-            
-            # calculate loss
-            x = x.view(-1,SEQ_LEN,VEC_LEN)
-            reconstr_loss = criterion(result, x)
-            attack_loss_list.append(reconstr_loss.item())
-            
-        print('=== Attack avg. loss = {} ==='.format(sum(attack_loss_list)/len(attack_loss_list)))
-
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -129,19 +218,22 @@ if __name__ == '__main__':
     
     # preprocess row data into .npy file
     if(NEED_PREPROCESS):
-        prep = Preprocess(seq_len=SEQ_LEN,train_ratio=TRAIN_RATIO)
+        prep = Preprocess(seq_len=SEQ_LEN
+        ,train_ratio=TRAIN_RATIO
+        ,save_file_intvl=SAVE_FILE_INTVL
+        )
+        prep.remove_npy(INPUT_DIR)
         prep.process_data(INPUT_DIR)
 
     # model setting
     model = CMAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
-    criterion = nn.MSELoss()
-    entropy_loss_func = EntropyLossEncap().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
     
     # train
-    train(model)
+    threshold = train(model)
+    print('Threshold = {}'.format(threshold))
 
-    validation(model)
+    # test
+    test(model,threshold)
 
     test_attack_data(model)
 

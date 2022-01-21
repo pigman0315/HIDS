@@ -52,12 +52,17 @@ class Preprocess:
         for file_cnt, file_info in enumerate(normal_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
             syscall_map = {} # map CPU# to syscall_list
+            # syscall_map[0] = [] # testing
             for line in f.readlines():
                 features = line.split(' ')
                 if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
-                    if(features[2] not in syscall_map.keys()): # 2: CPU#
-                        syscall_map[features[2]] = []
-                    syscall_map[features[2]].append(syscall_num_map[features[7]])
+                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
+                    #     syscall_map[features[2]] = []
+                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
+                    if(features[5] not in syscall_map.keys()): # 2: CPU#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])
+                    #syscall_map[0].append(syscall_num_map[features[7]])
             f.close()
             for key in syscall_map.keys():
                 #print(key,len(syscall_map[key]))
@@ -89,19 +94,24 @@ class Preprocess:
             start_time = datetime.strptime(f.readline().split(' ')[1][:-3],"%H:%M:%S.%f")
             exploit_time = float(file_info[5])
             syscall_map = {} # map CPU# to syscall_list
+            # syscall_map[0] = []
             for line in f.readlines():
                 features = line.split(' ')
                 cur_time = datetime.strptime(features[1][:-3],"%H:%M:%S.%f")
                 time_delta = (cur_time-start_time).total_seconds()
                 #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                 if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
-                    if(features[2] not in syscall_map.keys()): # 2: CPU#
-                        syscall_map[features[2]] = []
-                    syscall_map[features[2]].append(syscall_num_map[features[7]])     
+                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
+                    #     syscall_map[features[2]] = []
+                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
+                    if(features[5] not in syscall_map.keys()): # 2: CPU#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])     
+                    #syscall_map[0].append(syscall_num_map[features[7]]) 
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
                     attack_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
-                    #attack_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
+                    # attack_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
             
             # save each file's syscall
             if(len(attack_syscall_seq) > self.seq_len*20):
