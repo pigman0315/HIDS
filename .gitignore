@@ -1,5 +1,4 @@
 # weight file
-*.pth
 
 # pycache
 __pycache__

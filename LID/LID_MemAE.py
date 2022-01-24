@@ -49,6 +49,7 @@ def train(model):
                     reconstr_loss = criterion(result, x)
                     entropy_loss = entropy_loss_func(atten_weight)
                     loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
+                    #loss = reconstr_loss
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -63,7 +64,7 @@ def train(model):
             print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
         torch.save(model.state_dict(), "./weight.pth")
         print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
-        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth")
+        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_MemAE"+".pth")
 
     # get threshold to distinguish normal and attack data
     model.load_state_dict(torch.load('weight.pth'))
@@ -81,7 +82,7 @@ def train(model):
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
-                result = model(x)
+                result,_ = model(x)
 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -189,7 +190,7 @@ def test(model,threshold):
 
 # Globla variables
 NEED_PREPROCESS = False
-NEED_TRAIN = True
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
 TARGET_DIR = 'CVE-2018-3760'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
@@ -200,14 +201,14 @@ LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
 DROP_OUT = 0.0
-VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 6.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
-SUSPICIOUS_THRESHOLD = THRESHOLD_RATIO*10 # if suspicious count higher than this threshold then it is considered to be an attack file
+THRESHOLD_RATIO = 1.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = 20 # if suspicious count higher than this threshold then it is considered to be an attack file
 ENTROPY_LOSS_WEIGHT = 0.0002
 MEM_DIM = 200
-SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
+SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -234,8 +235,6 @@ if __name__ == '__main__':
 
     # test
     test(model,threshold)
-
-    test_attack_data(model)
 
 
 

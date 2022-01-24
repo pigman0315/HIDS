@@ -24,12 +24,12 @@ class Preprocess:
         for line in f.readlines():
             tokens = line[:-1].split(',')
             syscall_num_map[tokens[1]] = tokens[0]
-        ######################## testing SYSCALL EMBEDDING ########################################
-        # read syscall_vec
-        syscall_embed = np.load('./syscall_embed_16.npz')['vec']
+
+        ######################## testing SYSCALL embedding ############
+        #syscall_embed = np.load('./syscall_embed_16.npz')['vec']
         #syscall_embed = np.eye(334,dtype=int)
-        #syscall_embed = [i/334.0 for i in range(334)]
-        ###########################################################################################
+        syscall_embed = [i/334.0 for i in range(334)]
+        ###############################################################
 
         # read runs.csv
         normal_file_info_list = []
@@ -56,13 +56,21 @@ class Preprocess:
             for line in f.readlines():
                 features = line.split(' ')
                 if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
+                    ################# CPU# major #####################################
                     # if(features[2] not in syscall_map.keys()): # 2: CPU#
                     #     syscall_map[features[2]] = []
                     # syscall_map[features[2]].append(syscall_num_map[features[7]])
-                    if(features[5] not in syscall_map.keys()): # 2: CPU#
+                    ###################################################################
+
+                    ################# thread id major #################################
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
                         syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
+                    ###################################################################
+
+                    ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
+                    ###################################################################
             f.close()
             for key in syscall_map.keys():
                 #print(key,len(syscall_map[key]))
@@ -101,13 +109,21 @@ class Preprocess:
                 time_delta = (cur_time-start_time).total_seconds()
                 #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                 if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
+                    ################# CPU# major #####################################
                     # if(features[2] not in syscall_map.keys()): # 2: CPU#
                     #     syscall_map[features[2]] = []
                     # syscall_map[features[2]].append(syscall_num_map[features[7]])
-                    if(features[5] not in syscall_map.keys()): # 2: CPU#
+                    ###################################################################
+
+                    ################# thread id major #################################
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
                         syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])     
-                    #syscall_map[0].append(syscall_num_map[features[7]]) 
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
+                    ###################################################################
+
+                    ################# interleaving ####################################   
+                    #syscall_map[0].append(syscall_num_map[features[7]])
+                    ###################################################################
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
                     attack_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])

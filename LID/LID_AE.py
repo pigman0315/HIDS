@@ -57,7 +57,7 @@ def train(model):
             print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
         torch.save(model.state_dict(), "./weight.pth")
         print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
-        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+".pth")
+        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
 
     # get threshold to distinguish normal and attack data
     model.load_state_dict(torch.load('weight.pth'))
@@ -193,11 +193,11 @@ LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
 DROP_OUT = 0.0
-VEC_LEN = 16 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 6.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
-SUSPICIOUS_THRESHOLD = THRESHOLD_RATIO*10 # if suspicious count higher than this threshold then it is considered to be an attack file
+THRESHOLD_RATIO = 2.0 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = 20 # if suspicious count higher than this threshold then it is considered to be an attack file
 
 if __name__ == '__main__':  
     # Check if using GPU
