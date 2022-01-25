@@ -57,25 +57,21 @@ class Preprocess:
                 features = line.split(' ')
                 if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
                     ################# CPU# major #####################################
-                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
-                    #     syscall_map[features[2]] = []
-                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
-                    ###################################################################
+                    if(features[2] not in syscall_map.keys()): # 2: CPU#
+                        syscall_map[features[2]] = []
+                    syscall_map[features[2]].append(syscall_num_map[features[7]])
 
-                    ################# thread id major #################################
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
-                    ###################################################################
+                    ################# threadID major #################################
+                    # if(features[5] not in syscall_map.keys()): # 5: thread#
+                    #     syscall_map[features[5]] = []
+                    # syscall_map[features[5]].append(syscall_num_map[features[7]])  
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
-                    ###################################################################
+
             f.close()
             for key in syscall_map.keys():
-                #print(key,len(syscall_map[key]))
                 for i in range(len(syscall_map[key])-self.seq_len+1):
-                    #normal_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
                     normal_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
             
             # training data, save data for every "self.save_file_intvl"
@@ -88,11 +84,14 @@ class Preprocess:
                     print('{} shape = {}'.format('train_'+str(train_cnt),normal_syscall_seq.shape))
                     train_cnt += 1
                     normal_syscall_seq = [] # clear normal_syscall_seq
+                else:
+                    continue
             else:
-                normal_syscall_seq = np.array(normal_syscall_seq)
-                np.save(os.path.join(dir_path,'test_normal_'+str(test_normal_cnt)),normal_syscall_seq)
-                print('{} shape = {}'.format('test_normal_'+str(test_normal_cnt),normal_syscall_seq.shape))
-                test_normal_cnt += 1
+                if(len(normal_syscall_seq) > self.seq_len*20):
+                    normal_syscall_seq = np.array(normal_syscall_seq)
+                    np.save(os.path.join(dir_path,'test_normal_'+str(test_normal_cnt)),normal_syscall_seq)
+                    print('{} shape = {}, {}'.format('test_normal_'+str(test_normal_cnt),normal_syscall_seq.shape,file_info[1]))
+                    test_normal_cnt += 1
                 normal_syscall_seq = [] # clear normal_syscall_seq
         # get attack data
         attack_syscall_seq = []
@@ -110,20 +109,18 @@ class Preprocess:
                 #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                 if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                     ################# CPU# major #####################################
-                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
-                    #     syscall_map[features[2]] = []
-                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
-                    ###################################################################
+                    if(features[2] not in syscall_map.keys()): # 2: CPU#
+                        syscall_map[features[2]] = []
+                    syscall_map[features[2]].append(syscall_num_map[features[7]])
 
-                    ################# thread id major #################################
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
-                    ###################################################################
+                    ################# threadID major #################################
+                    # if(features[5] not in syscall_map.keys()): # 5: thread#
+                    #     syscall_map[features[5]] = []
+                    # syscall_map[features[5]].append(syscall_num_map[features[7]])  
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
-                    ###################################################################
+
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
                     attack_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
@@ -135,7 +132,7 @@ class Preprocess:
                 np.save(os.path.join(dir_path,'test_attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
                 print('{} shape = {}, {}'.format('test_attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
                 attack_cnt += 1
-                attack_syscall_seq = []
+            attack_syscall_seq = []
             f.close()
         # print file count of each category
         print("Train_cnt: {},  Test_normal_cnt: {}, Test_attack_cnt: {}".format(train_cnt,test_normal_cnt,attack_cnt))
