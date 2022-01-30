@@ -69,7 +69,63 @@ class CAE(nn.Module):
         fc_out = self.tdd(out) 
         
         return fc_out
-# Basic AutoEncoder
+# Convolutional 1D Variational AutoEncoder
+class CVAE(nn.Module):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
+        super(CVAE,self).__init__()
+        self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        # encoder
+        self.encoder = nn.Sequential(
+            nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(in_channels=self.hidden_size, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size//4, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//4),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # mean and standard deviation
+        self.mean_fc = nn.Linear(hidden_size//4,hidden_size//4)
+        self.logv_fc = nn.Linear(hidden_size//4,hidden_size//4)
+
+        # decoder
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose1d(in_channels=self.hidden_size//4, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
+            nn.BatchNorm1d(self.hidden_size//2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
+        )
+        # fully-connected layer
+        self.fc = nn.Linear(hidden_size, vec_len)
+        self.tdd = TimeDistributed(self.fc,batch_first=True)
+
+    def forward(self,x):
+        # encode
+        x = x.permute(0,2,1)
+        x = self.encoder(x)
+    
+        # reparameter
+        x = x.permute(0,2,1)
+        mean = self.mean_fc(x)
+        log_var = self.logv_fc(x)
+        std = torch.exp(log_var/2)
+        eps = torch.randn_like(std)
+        z = mean + eps*std
+        z = z.permute(0,2,1)
+
+        # decode
+        out = self.decoder(z)
+        out = out.permute(0,2,1)
+
+        # fully-connect
+        fc_out = self.tdd(out) 
+        
+        return fc_out, mean, log_var
+# LSTM AutoEncoder
 class AE(nn.Module):
     def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
         super(AE,self).__init__()

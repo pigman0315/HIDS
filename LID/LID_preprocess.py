@@ -57,14 +57,14 @@ class Preprocess:
                 features = line.split(' ')
                 if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
                     ################# CPU# major #####################################
-                    if(features[2] not in syscall_map.keys()): # 2: CPU#
-                        syscall_map[features[2]] = []
-                    syscall_map[features[2]].append(syscall_num_map[features[7]])
+                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
+                    #     syscall_map[features[2]] = []
+                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
 
                     ################# threadID major #################################
-                    # if(features[5] not in syscall_map.keys()): # 5: thread#
-                    #     syscall_map[features[5]] = []
-                    # syscall_map[features[5]].append(syscall_num_map[features[7]])  
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
@@ -109,14 +109,14 @@ class Preprocess:
                 #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                 if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                     ################# CPU# major #####################################
-                    if(features[2] not in syscall_map.keys()): # 2: CPU#
-                        syscall_map[features[2]] = []
-                    syscall_map[features[2]].append(syscall_num_map[features[7]])
+                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
+                    #     syscall_map[features[2]] = []
+                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
 
                     ################# threadID major #################################
-                    # if(features[5] not in syscall_map.keys()): # 5: thread#
-                    #     syscall_map[features[5]] = []
-                    # syscall_map[features[5]].append(syscall_num_map[features[7]])  
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])

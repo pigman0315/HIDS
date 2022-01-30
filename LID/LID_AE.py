@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
-from LID_model import AE,CAE
+from LID_model import CAE
 import re
 
 def get_npy_list(type):
@@ -180,11 +180,11 @@ def test(model,threshold):
     print('F1-score = {}'.format(2*tp/(2*tp+fp+fn)))
     print('==============')
 
-# Globla variables
-NEED_PREPROCESS = True
-NEED_TRAIN = True
+# Global variables
+NEED_PREPROCESS = False
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'Bruteforce_CWE-307'
+TARGET_DIR = 'PHP_CWE-434'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -196,7 +196,7 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 6 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 
 if __name__ == '__main__':  

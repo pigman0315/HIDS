@@ -1,5 +1,4 @@
 import os
-import re
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,8 +8,8 @@ from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
-from LID_model import CMAE
-from memory_module import EntropyLossEncap
+from LID_model import CVAE
+import re
 
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
@@ -22,8 +21,6 @@ def get_npy_list(type):
 def train(model):
     optimizer = optim.Adam(model.parameters(), lr=LR)
     criterion = nn.MSELoss()
-    entropy_loss_func = EntropyLossEncap().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
 
     # get train_*.npy file list
     npy_list = get_npy_list(type='train')
@@ -42,14 +39,12 @@ def train(model):
                     x = x.float()
                     x = x.view(-1, SEQ_LEN, VEC_LEN)
                     x = x.to(device)
-                    result, atten_weight = model(x)
-            
+                    result, mean, log_var = model(x)
+                    
                     # backpropagation
-                    x = x.view(-1,SEQ_LEN,VEC_LEN)
-                    reconstr_loss = criterion(result, x)
-                    entropy_loss = entropy_loss_func(atten_weight)
-                    loss = reconstr_loss + ENTROPY_LOSS_WEIGHT * entropy_loss
-                    #loss = reconstr_loss
+                    reconstruct_loss = criterion(result, x)
+                    kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
+                    loss = reconstruct_loss + kl_div*LAMBDA
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -64,7 +59,7 @@ def train(model):
             print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
         torch.save(model.state_dict(), "./weight.pth")
         print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
-        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_MemAE"+".pth")
+        #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
 
     # get threshold to distinguish normal and attack data
     model.load_state_dict(torch.load('weight.pth'))
@@ -82,7 +77,7 @@ def train(model):
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
-                result,_ = model(x)
+                result,_,_ = model(x)
 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -122,7 +117,7 @@ def test(model,threshold):
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
-                result,atten_weight = model(x)
+                result,_,_ = model(x)
                 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -157,7 +152,7 @@ def test(model,threshold):
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
-                result,atten_weight = model(x)
+                result,_,_ = model(x)
                 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -187,12 +182,11 @@ def test(model,threshold):
     print('F1-score = {}'.format(2*tp/(2*tp+fp+fn)))
     print('==============')
 
-
 # Global variables
-NEED_PREPROCESS = False
-NEED_TRAIN = False
+NEED_PREPROCESS = True
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'PHP_CWE-434'
+TARGET_DIR = 'CVE-2018-3760'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -202,13 +196,11 @@ BATCH_SIZE = 128 # batch size for training
 HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
 DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+LAMBDA = 1 # coefficient of kL_divergence
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-ENTROPY_LOSS_WEIGHT = 0.0002
-MEM_DIM = 200
-SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -227,8 +219,8 @@ if __name__ == '__main__':
         prep.process_data(INPUT_DIR)
 
     # model setting
-    model = CMAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
-    
+    model = CVAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
+
     # train
     threshold = train(model)
     print('Threshold = {}'.format(threshold))
