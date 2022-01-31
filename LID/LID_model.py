@@ -89,8 +89,8 @@ class CVAE(nn.Module):
             nn.LeakyReLU(0.2, inplace=True)
         )
         # mean and standard deviation
-        self.mean_fc = nn.Linear(hidden_size//4,hidden_size//4)
-        self.logv_fc = nn.Linear(hidden_size//4,hidden_size//4)
+        self.mean_fc = nn.Linear(self.seq_len,self.seq_len)
+        self.logv_fc = nn.Linear(self.seq_len,self.seq_len)
 
         # decoder
         self.decoder = nn.Sequential(
@@ -109,13 +109,11 @@ class CVAE(nn.Module):
         x = self.encoder(x)
     
         # reparameter
-        x = x.permute(0,2,1)
         mean = self.mean_fc(x)
         log_var = self.logv_fc(x)
         std = torch.exp(log_var/2)
         eps = torch.randn_like(std)
         z = mean + eps*std
-        z = z.permute(0,2,1)
 
         # decode
         out = self.decoder(z)

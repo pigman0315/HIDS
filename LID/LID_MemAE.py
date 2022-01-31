@@ -92,7 +92,7 @@ def train(model):
                     loss_sum = sum(loss_1D)
                     loss_list.append(loss_sum)
             loss_list.sort()
-            max_loss = max(loss_list[-int(len(loss_list)*0.2)],max_loss)
+            max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
     threshold = max_loss*(THRESHOLD_RATIO)
     return threshold
 
@@ -204,9 +204,11 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 8 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-ENTROPY_LOSS_WEIGHT = 0.0002
+THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
+#ENTROPY_LOSS_WEIGHT = 0.0002
+ENTROPY_LOSS_WEIGHT = 0.0
 MEM_DIM = 200
 SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
 

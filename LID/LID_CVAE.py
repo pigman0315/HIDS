@@ -43,7 +43,7 @@ def train(model):
                     
                     # backpropagation
                     reconstruct_loss = criterion(result, x)
-                    kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
+                    kl_div = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
                     loss = reconstruct_loss + kl_div*LAMBDA
                     optimizer.zero_grad()
                     loss.backward()
@@ -51,12 +51,12 @@ def train(model):
                     
                     # print progress
                     if(i % LOG_INTERVAL == 0):
-                        print('Epoch {}({}/{}), loss = {}'.format(epoch+1,i,len(train_data)//BATCH_SIZE,loss))
+                        print('Epoch {}({}/{}), reconstruct_loss = {}, kl div = {}'.format(epoch+1,i,len(train_data)//BATCH_SIZE,reconstruct_loss,kl_div))
                 
                 # record last epoch's loss
                 if(epoch == EPOCHS-1):
-                    train_loss_list.append(loss.item())
-            print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
+                    train_loss_list.append(reconstruct_loss.item())
+            print('=== epoch: {}, reconstruct_loss: {} ==='.format(epoch+1,reconstruct_loss))
         torch.save(model.state_dict(), "./weight.pth")
         print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
@@ -183,7 +183,7 @@ def test(model,threshold):
     print('==============')
 
 # Global variables
-NEED_PREPROCESS = True
+NEED_PREPROCESS = False
 NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
 TARGET_DIR = 'CVE-2018-3760'
@@ -199,7 +199,7 @@ VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embe
 LAMBDA = 1 # coefficient of kL_divergence
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 
 if __name__ == '__main__':  
