@@ -87,7 +87,7 @@ def train(model):
                     loss_sum = sum(loss_1D)
                     loss_list.append(loss_sum)
             loss_list.sort()
-            max_loss = max(loss_list[-int(len(loss_list)*0.2)],max_loss)
+            max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
     threshold = max_loss*(THRESHOLD_RATIO)
     return threshold
 
@@ -201,6 +201,7 @@ LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
 THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
+THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training data
 
 if __name__ == '__main__':  
     # Check if using GPU

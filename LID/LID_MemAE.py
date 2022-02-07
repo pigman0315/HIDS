@@ -72,18 +72,17 @@ def train(model):
     model.eval()
     max_loss = 0
     with torch.no_grad():
+        loss_list = []
         for npy_file in npy_list:
             print('Scanning {}'.format(npy_file))
             train_data = np.load(os.path.join(INPUT_DIR,npy_file))
             train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
-            loss_list = []
             for i, x in enumerate(train_dataloader):
                 # feed forward
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result,_ = model(x)
-
                 # calculate loss
                 loss_mat = criterion_none(result, x)
                 loss_mat = loss_mat.to('cpu')
@@ -91,8 +90,8 @@ def train(model):
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D)
                     loss_list.append(loss_sum)
-            loss_list.sort()
-            max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
+        loss_list.sort()
+        max_loss = loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)]
     threshold = max_loss*(THRESHOLD_RATIO)
     return threshold
 
@@ -192,9 +191,9 @@ def test(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'PHP_CWE-434'
+TARGET_DIR = 'CVE-2012-2122'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 20
+SEQ_LEN = 50
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -204,13 +203,12 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 8 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 0.1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
-#ENTROPY_LOSS_WEIGHT = 0.0002
-ENTROPY_LOSS_WEIGHT = 0.0
+ENTROPY_LOSS_WEIGHT = 0.0002
 MEM_DIM = 200
-SHRINK_THRESHOLD = 1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
+SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
 
 if __name__ == '__main__':  
     # Check if using GPU

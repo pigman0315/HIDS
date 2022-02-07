@@ -184,9 +184,9 @@ def test(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2014-0160'
+TARGET_DIR = 'CVE-2012-2122'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 20
+SEQ_LEN = 50
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -196,9 +196,9 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 1.5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.99
+THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
 
 if __name__ == '__main__':  
     # Check if using GPU
