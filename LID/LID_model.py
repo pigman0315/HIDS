@@ -170,7 +170,58 @@ class AE(nn.Module):
         #print(fc_out.shape)
         
         return fc_out
+# Variational AutoEncoder
+class VAE(nn.Module):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=64,dropout=0.0):
+        super(VAE,self).__init__()
+        self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        
+        # encoder
+        self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)
+        self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
+        self.ec_lstm3 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size//4,batch_first=True,dropout=dropout)
+        
+        # mean and standard deviation
+        self.mean_fc = nn.Linear(hidden_size//4,hidden_size//4)
+        self.logv_fc = nn.Linear(hidden_size//4,hidden_size//4)
+        
+        # decoder
+        self.dc_lstm1 = nn.LSTM(input_size=hidden_size//4,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
+        self.dc_lstm2 = nn.LSTM(input_size=hidden_size//2,hidden_size=hidden_size,batch_first=True,dropout=dropout)
+        
+        # fully-connected layer
+        self.fc = nn.Linear(hidden_size, vec_len)
+        self.tdd = TimeDistributed(self.fc,batch_first=True)
 
+    def forward(self,x):
+        # encode
+        out, _ = self.ec_lstm1(x)
+        out = F.relu(out)
+        out, _ = self.ec_lstm2(out)
+        out = F.relu(out)
+        out, (hn,_) = self.ec_lstm3(out)
+        hn = hn.view(-1,1,self.hidden_size//4)
+        hn = hn.repeat(1,self.seq_len,1)
+
+        # reparameter
+        mean = self.mean_fc(hn)
+        log_var = self.logv_fc(hn)
+        std = torch.exp(log_var/2)
+        eps = torch.randn_like(std)
+        z = mean + eps*std
+
+        # decode
+        out, _ = self.dc_lstm1(z)
+        out = F.relu(out)
+        out, _ = self.dc_lstm2(out)
+        out = F.relu(out)
+
+        # fully-connect
+        fc_out = self.tdd(out)
+        
+        return fc_out, mean, log_var
 # Convolution Memory-augmented AutoEncoder
 class CMAE(nn.Module):
     def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0,shrink_thres=0.0025,mem_dim=256):

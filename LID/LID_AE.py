@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 import sklearn
 from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
-from LID_model import CAE
+from LID_model import CAE,AE,VAE
 import re
 
 def get_npy_list(type):
@@ -39,6 +39,15 @@ def train(model):
                     x = x.float()
                     x = x.view(-1, SEQ_LEN, VEC_LEN)
                     x = x.to(device)
+                    result, mean, log_var = model(x)
+            
+                    # # backpropagation
+                    # reconstruct_loss = criterion(result, x)
+                    # kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
+                    # loss = reconstruct_loss+kl_div*LAMBDA
+                    # optimizer.zero_grad()
+                    # loss.backward()
+                    # optimizer.step()
                     result = model(x)
                     
                     # backpropagation
@@ -76,6 +85,7 @@ def train(model):
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result = model(x)
+                #result,_,_ = model(x)
 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -116,6 +126,7 @@ def test(model,threshold):
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result = model(x)
+                #result,_,_ = model(x)
                 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -151,6 +162,7 @@ def test(model,threshold):
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result = model(x)
+                #result,_,_ = model(x)
                 
                 # calculate loss
                 loss_mat = criterion_none(result, x)
@@ -184,9 +196,9 @@ def test(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
+TARGET_DIR = 'CVE-2017-7529'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 50
+SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -196,9 +208,10 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
-SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
+THRESHOLD_RATIO = 3 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = 20 # if suspicious count higher than this threshold then it is considered to be an attack file
+THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+LAMBDA = 1
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -217,6 +230,7 @@ if __name__ == '__main__':
         prep.process_data(INPUT_DIR)
 
     # model setting
+    #model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
     model = CAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
 
     # train

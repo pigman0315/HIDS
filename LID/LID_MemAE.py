@@ -11,6 +11,19 @@ from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
 from LID_model import CMAE
 from memory_module import EntropyLossEncap
+class SuspiciousCounter:
+    def __init__(self,threshold):
+        self.queue = []
+        self.count = 0
+        self.threshold = threshold
+    def push(self,anomaly_score):
+        self.queue.append(anomaly_score)
+        if(anomaly_score > self.threshold):
+            self.count += 1
+    def pop(self):
+        if(self.queue[0] <= self.threshold):
+            self.count -= 1
+        del self.queue[0]
 
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
@@ -115,6 +128,7 @@ def test(model,threshold):
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
             validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
             suspicious_counter = 0
+            # suspicious_counter = SuspiciousCounter(threshold)
             is_attack = False
             for i, x in enumerate(validation_dataloader):
                 # feed forward
@@ -129,6 +143,12 @@ def test(model,threshold):
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D)
+                    # suspicious_counter.push(loss_sum)
+                    # if(len(suspicious_counter.queue) >= 50):
+                    #     suspicious_counter.pop()
+                    # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
+                    #     is_attack = True
+                    #     break
                     if(loss_sum > threshold):
                         suspicious_counter += 1
                     else:
@@ -137,6 +157,8 @@ def test(model,threshold):
                     if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+                if(is_attack == True):
+                    break
             if(is_attack == True):
                 fp += 1
             else:
@@ -150,6 +172,7 @@ def test(model,threshold):
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
             attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
             suspicious_counter = 0
+            #suspicious_counter = SuspiciousCounter(threshold)
             is_attack = False
             for i, x in enumerate(attack_dataloader):
                 # feed forward
@@ -164,6 +187,12 @@ def test(model,threshold):
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D)
+                    # suspicious_counter.push(loss_sum)
+                    # if(len(suspicious_counter.queue) >= 50):
+                    #     suspicious_counter.pop()
+                    # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
+                    #     is_attack = True
+                    #     break
                     if(loss_sum > threshold):
                         suspicious_counter += 1
                     else:
@@ -172,6 +201,8 @@ def test(model,threshold):
                     if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+                if(is_attack == True):
+                    break
             if(is_attack == True):
                 tp += 1
             else:
@@ -191,9 +222,9 @@ def test(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
+TARGET_DIR = 'CVE-2017-7529'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 50
+SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -203,7 +234,7 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 0.1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 1.5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
 ENTROPY_LOSS_WEIGHT = 0.0002

@@ -184,9 +184,9 @@ def test(model,threshold):
 
 # Global variables
 NEED_PREPROCESS = False
-NEED_TRAIN = True
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2018-3760'
+TARGET_DIR = 'Bruteforce_CWE-307'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -199,9 +199,9 @@ VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embe
 LAMBDA = 1 # coefficient of kL_divergence
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 1.5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
 
 if __name__ == '__main__':  
     # Check if using GPU
