@@ -133,6 +133,8 @@ def test(model,threshold):
                     if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+                if(is_attack == True):
+                    break
             if(is_attack == True):
                 fp += 1
             else:
@@ -168,6 +170,8 @@ def test(model,threshold):
                     if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+                if(is_attack == True):
+                    break
             if(is_attack == True):
                 tp += 1
             else:
@@ -199,9 +203,9 @@ VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embe
 LAMBDA = 1 # coefficient of kL_divergence
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 1.5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
 
 if __name__ == '__main__':  
     # Check if using GPU
