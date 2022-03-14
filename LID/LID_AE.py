@@ -39,8 +39,9 @@ def train(model):
                     x = x.float()
                     x = x.view(-1, SEQ_LEN, VEC_LEN)
                     x = x.to(device)
-                    result, mean, log_var = model(x)
-            
+                    result = model(x)
+
+                    #result, mean, log_var = model(x)
                     # # backpropagation
                     # reconstruct_loss = criterion(result, x)
                     # kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
@@ -48,7 +49,6 @@ def train(model):
                     # optimizer.zero_grad()
                     # loss.backward()
                     # optimizer.step()
-                    result = model(x)
                     
                     # backpropagation
                     loss = criterion(result, x)
@@ -200,7 +200,7 @@ def test(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
+TARGET_DIR = 'EPS_CWE-434'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -212,9 +212,9 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 10 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = 0.9 # percentile of reconstruction error in training data
 #LAMBDA = 1 # for VAE
 
 if __name__ == '__main__':  

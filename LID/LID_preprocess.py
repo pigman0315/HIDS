@@ -98,15 +98,10 @@ class Preprocess:
         attack_cnt = 0
         for file_cnt,file_info in enumerate(attack_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
-            start_time = datetime.strptime(f.readline().split(' ')[1][:-3],"%H:%M:%S.%f")
-            exploit_time = float(file_info[5])
             syscall_map = {} # map CPU# to syscall_list
             # syscall_map[0] = []
             for line in f.readlines():
                 features = line.split(' ')
-                cur_time = datetime.strptime(features[1][:-3],"%H:%M:%S.%f")
-                time_delta = (cur_time-start_time).total_seconds()
-                #if(features[6] == '>' and time_delta > exploit_time and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                 if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
                     ################# CPU# major #####################################
                     # if(features[2] not in syscall_map.keys()): # 2: CPU#
