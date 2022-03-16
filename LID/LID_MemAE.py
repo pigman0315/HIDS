@@ -222,7 +222,7 @@ def test(model,threshold):
 NEED_PREPROCESS = True
 NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'SQL_Injection_CWE-89'
+TARGET_DIR = 'ZipSlip'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -233,7 +233,7 @@ HIDDEN_SIZE = 256 # encoder's 1st layer hidden size
 DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
-SAVE_FILE_INTVL = 30 # saving-file interval for training (prevent memory explosion)
+SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
 THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training data
