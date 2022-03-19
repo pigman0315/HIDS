@@ -69,35 +69,38 @@ def train(model):
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
 
     # get threshold to distinguish normal and attack data
-    model.load_state_dict(torch.load('weight.pth'))
-    criterion_none = nn.MSELoss(reduction='none')
-    model.eval()
-    max_loss = 0
-    with torch.no_grad():
-        for npy_file in npy_list:
-            print('Scanning {}'.format(npy_file))
-            train_data = np.load(os.path.join(INPUT_DIR,npy_file))
-            train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
-            loss_list = []
-            for i, x in enumerate(train_dataloader):
-                # feed forward
-                x = x.float()
-                x = x.view(-1, SEQ_LEN, VEC_LEN)
-                x = x.to(device)
-                result = model(x)
-                #result,_,_ = model(x)
+    if(TRAIN_THRESHOLD == None):
+        model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
+        criterion_none = nn.MSELoss(reduction='none')
+        model.eval()
+        max_loss = 0
+        with torch.no_grad():
+            for npy_file in npy_list:
+                print('Scanning {}'.format(npy_file))
+                train_data = np.load(os.path.join(INPUT_DIR,npy_file))
+                train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
+                loss_list = []
+                for i, x in enumerate(train_dataloader):
+                    # feed forward
+                    x = x.float()
+                    x = x.view(-1, SEQ_LEN, VEC_LEN)
+                    x = x.to(device)
+                    result = model(x)
+                    #result,_,_ = model(x)
 
-                # calculate loss
-                loss_mat = criterion_none(result, x)
-                loss_mat = loss_mat.to('cpu')
-                for loss in loss_mat:
-                    loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
-                    loss_list.append(loss_sum)
-            loss_list.sort()
-            max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
-    threshold = max_loss*(THRESHOLD_RATIO)
-    return threshold
+                    # calculate loss
+                    loss_mat = criterion_none(result, x)
+                    loss_mat = loss_mat.to('cpu')
+                    for loss in loss_mat:
+                        loss_1D = torch.flatten(loss).tolist()
+                        loss_sum = sum(loss_1D)
+                        loss_list.append(loss_sum)
+                loss_list.sort()
+                max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
+        threshold = max_loss*(THRESHOLD_RATIO)
+        return threshold
+    else:
+        return TRAIN_THRESHOLD
 
 def test(model,threshold):
     # matrics
@@ -107,7 +110,7 @@ def test(model,threshold):
     tn = 0
 
     # model setting
-    model.load_state_dict(torch.load('weight.pth'))
+    model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
     model.eval()
     criterion_none = nn.MSELoss(reduction='none') # loss function
 
@@ -197,10 +200,11 @@ def test(model,threshold):
     print('==============')
 
 # Global variables
-NEED_PREPROCESS = True
-NEED_TRAIN = True
+NEED_PREPROCESS = False
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
 TARGET_DIR = 'ZipSlip'
+MODEL_WEIGHT_PATH = 'weight_ZipSlip_AE_no_embed_m200_seq20.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -214,7 +218,8 @@ LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
 THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = 0.95 # percentile of reconstruction error in training data
+TRAIN_THRESHOLD = 0.00024136563115462195
 #LAMBDA = 1 # for VAE
 
 if __name__ == '__main__':  
