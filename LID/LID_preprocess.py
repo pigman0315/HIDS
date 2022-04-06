@@ -29,6 +29,7 @@ class Preprocess:
         #syscall_embed = np.load('./syscall_embed_16.npz')['vec']
         #syscall_embed = np.eye(334,dtype=int)
         syscall_embed = [i/334.0 for i in range(334)]
+        syscall_embed.append(1) # for evil return value
         ###############################################################
 
         # read runs.csv
@@ -51,7 +52,7 @@ class Preprocess:
         test_normal_cnt = 0
         for file_cnt, file_info in enumerate(normal_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
-            syscall_map = {} # map CPU# to syscall_list
+            syscall_map = {} # map thread# to syscall_list
             # syscall_map[0] = [] # testing
             for line in f.readlines():
                 features = line.split(' ')
@@ -87,12 +88,13 @@ class Preprocess:
                 else:
                     continue
             else:
-                if(len(normal_syscall_seq) > self.seq_len*20):
+                if(len(normal_syscall_seq) > self.seq_len*1):
                     normal_syscall_seq = np.array(normal_syscall_seq)
                     np.save(os.path.join(dir_path,'test_normal_'+str(test_normal_cnt)),normal_syscall_seq)
                     print('{} shape = {}, {}'.format('test_normal_'+str(test_normal_cnt),normal_syscall_seq.shape,file_info[1]))
                     test_normal_cnt += 1
                 normal_syscall_seq = [] # clear normal_syscall_seq
+        
         # get attack data
         attack_syscall_seq = []
         attack_cnt = 0
@@ -115,6 +117,11 @@ class Preprocess:
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
+                elif(features[6] == '<' and line.find('../../etc/passwd') != -1):
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(-1)
+
 
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
@@ -122,7 +129,7 @@ class Preprocess:
                     # attack_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
             
             # save each file's syscall
-            if(len(attack_syscall_seq) > self.seq_len*20):
+            if(len(attack_syscall_seq) > self.seq_len*1):
                 attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
                 np.save(os.path.join(dir_path,'test_attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
                 print('{} shape = {}, {}'.format('test_attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))

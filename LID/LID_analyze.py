@@ -1,6 +1,16 @@
 import os
 import numpy as np
-    
+import re
+from scipy.spatial.distance import hamming
+import matplotlib.pyplot as plt
+from LID_preprocess import Preprocess
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import DataLoader    
+from LID_model import CAE
+
 def get_data(dir_path,train_ratio):
     # read runs.csv
     normal_file_info_list = []
@@ -64,15 +74,56 @@ def get_syscall_type(syscall_list):
     print(len(d.keys()))
     print("---------------------------------")
     return d
-        
-def analyze(dir_path,train_ratio):
-    train,test_normal,test_attack = get_data(dir_path,train_ratio)
-    train_dict = get_syscall_type(train)
-    test_normal_dict = get_syscall_type(test_normal)
-    test_attack_dict = get_syscall_type(test_attack)
+
+def build_database(type,window_len):
+    # get npy file
+    file_list = os.listdir(DIR_PATH)
+    find_pattern = re.compile(rf"{type}_[0-9]*\.npy") # $type_
+    npy_list = find_pattern.findall(' '.join(file_list))
     
+    # read data
+    s = set()
+    comb_cnt = 0
+    for npy_file in npy_list:
+        data = np.load(os.path.join(DIR_PATH,npy_file))
+        comb_cnt += len(data)
+        for seq in data:
+            seq = [int(i*334) for i in seq]
+            s.add(tuple(seq))
+    print("{} combinations in {}".format(len(s),comb_cnt))
+    return s
+
+def analyze(dir_path,train_ratio,window_len):
+    # train,test_normal,test_attack = get_data(dir_path,train_ratio)
+    # train_dict = get_syscall_type(train)
+    # test_normal_dict = get_syscall_type(test_normal)
+    # test_attack_dict = get_syscall_type(test_attack)
+    db_train = build_database('train',window_len)
+    db_test_normal = build_database('test_normal',window_len)
+    db_test_attack = build_database('test_attack',window_len)
+    diff_train_normal = db_train - db_test_normal
+    diff_train_attack = db_train - db_test_attack
+    diff_attack_train = db_test_attack - db_train
+    diff_normal_train = db_test_normal - db_train
+    print("Train - Test_normal: {}\nTrain - Attack: {}\nAttack - Train: {}\nTest_normal - Train: {}".format(
+        len(diff_train_normal),
+        len(diff_train_attack),
+        len(diff_attack_train),
+        len(diff_normal_train)))                       
 
 if __name__ == '__main__': 
-    DIR_PATH = '../../LID-DS/CVE-2012-2122'
+    DIR_PATH = '../../LID-DS/CVE-2017-7529'
     TRAIN_RATIO = 0.2
-    analyze(DIR_PATH,TRAIN_RATIO)
+    WINDOW_LEN = 20
+    SAVE_FILE_INTVL = 50
+    NEED_PREPROCESS = False
+    
+    if(NEED_PREPROCESS):
+        prep = Preprocess(seq_len=WINDOW_LEN
+            ,train_ratio=TRAIN_RATIO
+            ,save_file_intvl=SAVE_FILE_INTVL
+            )
+        prep.remove_npy(DIR_PATH)
+        prep.process_data(DIR_PATH)
+
+    analyze(DIR_PATH,TRAIN_RATIO,WINDOW_LEN)
