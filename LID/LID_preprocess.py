@@ -29,7 +29,8 @@ class Preprocess:
         #syscall_embed = np.load('./syscall_embed_16.npz')['vec']
         #syscall_embed = np.eye(334,dtype=int)
         syscall_embed = [i/334.0 for i in range(334)]
-        syscall_embed.append(1) # for evil return value
+        syscall_embed.append(1) # for normal write
+        syscall_embed.append(2) # for evil write
         ###############################################################
 
         # read runs.csv
@@ -45,7 +46,7 @@ class Preprocess:
                 attack_file_info_list.append(file_info)
         f.close()
 
-        # get normal data
+        # # get normal data
         normal_syscall_seq = []
         train_cnt = 0
         valid_cnt = 0
@@ -69,7 +70,11 @@ class Preprocess:
 
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
-
+                elif(features[6] == '<' and features[7] == 'writev'):
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(-2)
+                
             f.close()
             for key in syscall_map.keys():
                 for i in range(len(syscall_map[key])-self.seq_len+1):
@@ -118,6 +123,14 @@ class Preprocess:
                     ################# interleaving ####################################   
                     #syscall_map[0].append(syscall_num_map[features[7]])
                 elif(features[6] == '<' and line.find('../../etc/passwd') != -1):
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(-1)
+                elif(features[6] == '<' and line.find('res=16389') != -1):
+                    if(features[5] not in syscall_map.keys()): # 5: thread#
+                        syscall_map[features[5]] = []
+                    syscall_map[features[5]].append(-1)
+                elif(features[6] == '<' and line.find('Access denied for user') != -1):
                     if(features[5] not in syscall_map.keys()): # 5: thread#
                         syscall_map[features[5]] = []
                     syscall_map[features[5]].append(-1)

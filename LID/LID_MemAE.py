@@ -239,38 +239,38 @@ def check_counter(model,threshold):
     model.eval()
     criterion_none = nn.MSELoss(reduction='none') # loss function
 
-    with torch.no_grad():
-        npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
-        # for each file
-        for file_num, npy_file in enumerate(npy_list):
-            print('Testing {}'.format(npy_file))
-            validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
-            validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            suspicious_counter = 0 # for new detect algo.
-            sc_list = []
-            for i, x in enumerate(validation_dataloader):
-                # feed forward
-                x = x.float()
-                x = x.view(-1, SEQ_LEN, VEC_LEN)
-                x = x.to(device)
-                result,atten_weight = model(x)
+    # with torch.no_grad():
+    #     npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
+    #     # for each file
+    #     for file_num, npy_file in enumerate(npy_list):
+    #         print('Testing {}'.format(npy_file))
+    #         validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
+    #         validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
+    #         suspicious_counter = 0 # for new detect algo.
+    #         sc_list = []
+    #         for i, x in enumerate(validation_dataloader):
+    #             # feed forward
+    #             x = x.float()
+    #             x = x.view(-1, SEQ_LEN, VEC_LEN)
+    #             x = x.to(device)
+    #             result,atten_weight = model(x)
                 
-                # calculate loss
-                loss_mat = criterion_none(result, x)
-                loss_mat = loss_mat.to('cpu')
-                for loss in loss_mat:
-                    loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
-                    ### New detection algo.
-                    if(loss_sum > threshold):
-                        suspicious_counter += 1
-                    else:
-                        suspicious_counter -= 1
-                        suspicious_counter = max(0,suspicious_counter)
-                    sc_list.append(suspicious_counter)
-            plt.plot(sc_list)
-            plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png')) 
-            plt.close()
+    #             # calculate loss
+    #             loss_mat = criterion_none(result, x)
+    #             loss_mat = loss_mat.to('cpu')
+    #             for loss in loss_mat:
+    #                 loss_1D = torch.flatten(loss).tolist()
+    #                 loss_sum = sum(loss_1D)
+    #                 ### New detection algo.
+    #                 if(loss_sum > threshold):
+    #                     suspicious_counter += 1
+    #                 else:
+    #                     suspicious_counter -= 1
+    #                     suspicious_counter = max(0,suspicious_counter)
+    #                 sc_list.append(suspicious_counter)
+    #         plt.plot(sc_list)
+    #         plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png')) 
+            # plt.close()
             # if(file_num == 5):
             #     exit()
                 
@@ -307,18 +307,18 @@ def check_counter(model,threshold):
             plt.plot(sc_list)
             plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png')) 
             plt.close()
-            # if(file_num == 5):
-            #     exit()
+            if(file_num == 5):
+                exit()
                     
 
 # Global variables
 NEED_PREPROCESS = False
-NEED_TRAIN = False
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'ZipSlip'
-MODEL_WEIGHT_PATH = 'weight_ZipSlip_MemAE_no_embed_m200_seq20_st0.1.pth'
+TARGET_DIR = 'CVE-2012-2122'
+MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 20
+SEQ_LEN = 10
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -332,9 +332,9 @@ THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RA
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
 ENTROPY_LOSS_WEIGHT = 0.0002 # default: 0.0002
-MEM_DIM = 200
+MEM_DIM = 500
 SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
-TRAIN_THRESHOLD = 0.0035846354739987873 # to speedup experiment
+TRAIN_THRESHOLD = None # to speedup experiment
 #QUEUE_LEN = 10 # M in old detection algo.
 
 if __name__ == '__main__':  
