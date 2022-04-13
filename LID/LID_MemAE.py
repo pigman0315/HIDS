@@ -81,7 +81,7 @@ def train(model):
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_MemAE"+".pth")
 
     # get threshold to distinguish normal and attack data
-    if(TRAIN_THRESHOLD == None):
+    if(MAX_LOSS == None):
         model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
         criterion_none = nn.MSELoss(reduction='none')
         model.eval()
@@ -107,10 +107,10 @@ def train(model):
                         loss_list.append(loss_sum)
             loss_list.sort()
             max_loss = loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)]
-        threshold = max_loss*(THRESHOLD_RATIO)
-        return threshold
+        #threshold = max_loss*(THRESHOLD_RATIO)
+        return max_loss
     else:
-        return TRAIN_THRESHOLD
+        return MAX_LOSS
 
 def test(model,threshold):
     # matrics
@@ -131,10 +131,8 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
             validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            # for new detect algo.
-            suspicious_counter = 0
-            # for old detect algo. 
-            #suspicious_counter = SuspiciousCounter(threshold)
+            suspicious_counter = 0 # for new detect algo.
+            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
             for i, x in enumerate(validation_dataloader):
                 # feed forward
@@ -181,10 +179,8 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
             attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
-            # for new detect algo.
-            suspicious_counter = 0
-            # for old detect algo.
-            #suspicious_counter = SuspiciousCounter(threshold)
+            suspicious_counter = 0 # for new detect algo.
+            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
             for i, x in enumerate(attack_dataloader):
                 # feed forward
@@ -313,9 +309,9 @@ def check_counter(model,threshold):
 
 # Global variables
 NEED_PREPROCESS = False
-NEED_TRAIN = True
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
+TARGET_DIR = 'CVE-2017-7529'
 MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 10
@@ -332,9 +328,9 @@ THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RA
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
 ENTROPY_LOSS_WEIGHT = 0.0002 # default: 0.0002
-MEM_DIM = 500
+MEM_DIM = 200
 SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
-TRAIN_THRESHOLD = None # to speedup experiment
+MAX_LOSS = None # to speedup experiment
 #QUEUE_LEN = 10 # M in old detection algo.
 
 if __name__ == '__main__':  
@@ -357,8 +353,9 @@ if __name__ == '__main__':
     model = CMAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     
     # train
-    threshold = train(model)
-    print('Threshold = {}'.format(threshold))
+    max_loss = train(model)
+    print('Max loss = {}'.format(max_loss))
+    threshold = max_loss*THRESHOLD_RATIO
 
     # test
     test(model,threshold)

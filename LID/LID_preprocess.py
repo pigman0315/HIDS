@@ -8,6 +8,8 @@ class Preprocess:
         self.seq_len = seq_len
         self.train_ratio = train_ratio
         self.save_file_intvl = save_file_intvl
+        self.target_syscall_w = ['write','writev','pwrite','pwritev','pwritev2']
+        self.target_syscall_r = ['read','readv','pread','preadv','preadv2']
         
     def remove_npy(self,dir_path):
         files = os.listdir(dir_path)
@@ -15,23 +17,48 @@ class Preprocess:
             if(file[-4:] == '.npy'):
                 print('remove {}'.format(file))
                 os.remove(os.path.join(dir_path,file))
-    
+
+    def get_syscall_key(self,features):
+        # key consists of syscall_name + return value(file size) + file_name(may be ip or file)
+        # only consider return value & file name of syscall in target syscall list
+        # other syscall only consider its syscall name
+        key = ""
+        syscall_name = features[7]
+        if(syscall_name in self.target_syscall_w):
+            key += 'write_'
+        elif(syscall_name in self.target_syscall_r):
+            key += 'read_'
+        else:
+            key += syscall_name
+        if(syscall_name in self.target_syscall_w or syscall_name in self.target_syscall_r):
+            # get ret_value
+            ret_value = features[9].split('=')[1]
+            key += ret_value + '_'
+            # get file_name
+            try:
+                fd_content = features[8].split('(')[1].split(')')[0]
+                if('<4t>' in fd_content):
+                    file_name = fd_content.split('>')[2]    
+                else:
+                    file_name = fd_content.split('>')[1]
+                    if('tmp' in file_name):
+                        file_name = 'tmp'
+                    elif('pipe' in file_name):
+                        file_name = 'pipe'
+            except:
+                file_name = ''
+            key += file_name
+        return key
+        
+
     def process_data(self,dir_path):
         # read syscall list
-        syscall_num_map = {}
+        syscall_name_set = set()
         f = open('./syscall_list.txt')
         next(f) # skip header
         for line in f.readlines():
-            tokens = line[:-1].split(',')
-            syscall_num_map[tokens[1]] = tokens[0]
-
-        ######################## testing SYSCALL embedding ############
-        #syscall_embed = np.load('./syscall_embed_16.npz')['vec']
-        #syscall_embed = np.eye(334,dtype=int)
-        syscall_embed = [i/334.0 for i in range(334)]
-        syscall_embed.append(1) # for normal write
-        syscall_embed.append(2) # for evil write
-        ###############################################################
+            syscall_name = line[:-1].split(',')[1]
+            syscall_name_set.add(syscall_name)
 
         # read runs.csv
         normal_file_info_list = []
@@ -46,45 +73,54 @@ class Preprocess:
                 attack_file_info_list.append(file_info)
         f.close()
 
-        # # get normal data
+        # get normal data
         normal_syscall_seq = []
         train_cnt = 0
-        valid_cnt = 0
         test_normal_cnt = 0
+        map_syscallArg_to_idx = {} # map 'syscall_name+ret_value+file_name' to a unique idx
         for file_cnt, file_info in enumerate(normal_file_info_list):
+            #print('map size: {}'.format(len(map_syscallArg_to_idx)))
             f = open(os.path.join(dir_path,file_info[1]))
-            syscall_map = {} # map thread# to syscall_list
-            # syscall_map[0] = [] # testing
+            map_threadN_to_syscall = {} # put all syscalls with same thread# into a list
             for line in f.readlines():
                 features = line.split(' ')
-                if(features[6] == '>' and (features[7] in syscall_num_map.keys())): # 6: direction, 7: syscall name
-                    ################# CPU# major #####################################
-                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
-                    #     syscall_map[features[2]] = []
-                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
-
-                    ################# threadID major #################################
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
-
-                    ################# interleaving ####################################   
-                    #syscall_map[0].append(syscall_num_map[features[7]])
-                elif(features[6] == '<' and features[7] == 'writev'):
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(-2)
-                
+                syscall_name = features[7]
+                syscall_direction = features[6]
+                thread_num = features[5]
+                if(syscall_direction == '>' and syscall_name in syscall_name_set):
+                    # get index in syscall_map with key 'syscall+ret_val+file'
+                    key = self.get_syscall_key(features)
+                    syscall_idx = -100000 
+                    if(file_cnt < int(len(normal_file_info_list)*self.train_ratio)): # training file
+                        if(key not in map_syscallArg_to_idx.keys()):
+                            #print(key)
+                            map_syscallArg_to_idx[key] = len(map_syscallArg_to_idx)
+                        syscall_idx = map_syscallArg_to_idx[key]
+                    else:                                                            # test_normal file
+                        if(key not in map_syscallArg_to_idx.keys()):
+                            if(syscall_name in self.target_syscall_w):
+                                syscall_idx = len(map_syscallArg_to_idx) # represent unknown write
+                            elif(syscall_name in self.target_syscall_r):
+                                syscall_idx = len(map_syscallArg_to_idx)+1 # represent unknown read
+                            else:
+                                syscall_idx = len(map_syscallArg_to_idx)+2 # represent unknown syscall
+                        else:
+                            syscall_idx = map_syscallArg_to_idx[key]
+                        
+                    # threadID major
+                    if(thread_num not in map_threadN_to_syscall.keys()):
+                        map_threadN_to_syscall[thread_num] = []
+                    map_threadN_to_syscall[thread_num].append(syscall_idx)  
             f.close()
-            for key in syscall_map.keys():
-                for i in range(len(syscall_map[key])-self.seq_len+1):
-                    normal_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
+            for key in map_threadN_to_syscall.keys():
+                for i in range(len(map_threadN_to_syscall[key])-self.seq_len+1):
+                    normal_syscall_seq.append(map_threadN_to_syscall[key][i:i+self.seq_len])
             
             # training data, save data for every "self.save_file_intvl"
             if(file_cnt < int(len(normal_file_info_list)*self.train_ratio)):
                 if((file_cnt+1) % self.save_file_intvl == 0 
                     or file_cnt == int(len(normal_file_info_list)*self.train_ratio)-1
-                    ):
+                ):
                     normal_syscall_seq = np.array(normal_syscall_seq)
                     np.save(os.path.join(dir_path,'train_'+str(train_cnt)),normal_syscall_seq)
                     print('{} shape = {}'.format('train_'+str(train_cnt),normal_syscall_seq.shape))
@@ -103,51 +139,47 @@ class Preprocess:
         # get attack data
         attack_syscall_seq = []
         attack_cnt = 0
-        for file_cnt,file_info in enumerate(attack_file_info_list):
+        for file_cnt, file_info in enumerate(attack_file_info_list):
             f = open(os.path.join(dir_path,file_info[1]))
-            syscall_map = {} # map CPU# to syscall_list
-            # syscall_map[0] = []
+            map_threadN_to_syscall = {} # put all syscalls with same thread# into a list
             for line in f.readlines():
                 features = line.split(' ')
-                if(features[6] == '>' and features[7] in syscall_num_map.keys()): # 6: direction, 7: syscall name
-                    ################# CPU# major #####################################
-                    # if(features[2] not in syscall_map.keys()): # 2: CPU#
-                    #     syscall_map[features[2]] = []
-                    # syscall_map[features[2]].append(syscall_num_map[features[7]])
-
-                    ################# threadID major #################################
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(syscall_num_map[features[7]])  
-
-                    ################# interleaving ####################################   
-                    #syscall_map[0].append(syscall_num_map[features[7]])
-                elif(features[6] == '<' and line.find('../../etc/passwd') != -1):
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(-1)
-                elif(features[6] == '<' and line.find('res=16389') != -1):
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(-1)
-                elif(features[6] == '<' and line.find('Access denied for user') != -1):
-                    if(features[5] not in syscall_map.keys()): # 5: thread#
-                        syscall_map[features[5]] = []
-                    syscall_map[features[5]].append(-1)
-
-
-            for key in syscall_map.keys():
-                for i in range(len(syscall_map[key])-self.seq_len+1):
-                    attack_syscall_seq.append([syscall_embed[int(syscall)] for syscall in syscall_map[key][i:i+self.seq_len]])
-                    # attack_syscall_seq.append([int(syscall)/334.0 for syscall in syscall_map[key][i:i+self.seq_len]])
-            
-            # save each file's syscall
-            if(len(attack_syscall_seq) > self.seq_len*1):
-                attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
-                np.save(os.path.join(dir_path,'test_attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
-                print('{} shape = {}, {}'.format('test_attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
-                attack_cnt += 1
-            attack_syscall_seq = []
+                syscall_name = features[7]
+                syscall_direction = features[6]
+                thread_num = features[5]
+                if(syscall_direction == '>' and syscall_name in syscall_name_set):
+                    # get index in syscall_map with key 'syscall+ret_val+file'
+                    key = self.get_syscall_key(features)
+                    syscall_idx = -100000 
+                    if(key not in map_syscallArg_to_idx.keys()):
+                        if(syscall_name in self.target_syscall_w):
+                            syscall_idx = len(map_syscallArg_to_idx) # represent unknown write
+                        elif(syscall_name in self.target_syscall_r):
+                            syscall_idx = len(map_syscallArg_to_idx)+1 # represent unknown read
+                        else:
+                            syscall_idx = len(map_syscallArg_to_idx)+2 # represent unknown syscall
+                    else:
+                        syscall_idx = map_syscallArg_to_idx[key]
+                        
+                    # threadID major
+                    if(thread_num not in map_threadN_to_syscall.keys()):
+                        map_threadN_to_syscall[thread_num] = []
+                    map_threadN_to_syscall[thread_num].append(syscall_idx)  
             f.close()
+            for key in map_threadN_to_syscall.keys():
+                for i in range(len(map_threadN_to_syscall[key])-self.seq_len+1):
+                    attack_syscall_seq.append(map_threadN_to_syscall[key][i:i+self.seq_len])
+            # save each file's syscall
+            attack_syscall_seq = np.array(attack_syscall_seq) # list to np.array
+            np.save(os.path.join(dir_path,'test_attack_'+str(attack_cnt)),attack_syscall_seq) # save np.array
+            print('{} shape = {}, {}'.format('test_attack_'+str(attack_cnt),attack_syscall_seq.shape,file_info[1]))
+            attack_cnt += 1
+            attack_syscall_seq = []
+
         # print file count of each category
         print("Train_cnt: {},  Test_normal_cnt: {}, Test_attack_cnt: {}".format(train_cnt,test_normal_cnt,attack_cnt))
+
+        # save map_syscallArg_to_idx size
+        map_size = np.array([len(map_syscallArg_to_idx)+3]) # 3: unknown read, unknown write, unknown syscall
+        print('Map size = {}'.format(map_size[0]))
+        np.save(os.path.join(dir_path,'map_size'),map_size)

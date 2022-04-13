@@ -6,12 +6,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import sklearn
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
 from LID_model import CAE,AE,VAE
 import re
-
 class SuspiciousCounter:
     def __init__(self,threshold):
         self.queue = []
@@ -25,7 +23,6 @@ class SuspiciousCounter:
         if(self.queue[0] > self.threshold):
             self.count -= 1
         del self.queue[0]
-
 def get_npy_list(type):
     file_list = os.listdir(INPUT_DIR)
     find_pattern = re.compile(rf"{type}_[0-9]*\.npy") # $type_
@@ -33,7 +30,7 @@ def get_npy_list(type):
     #print(npy_list)
     return npy_list
 
-def train(model):
+def train(model,map_size):
     optimizer = optim.Adam(model.parameters(), lr=LR)
     criterion = nn.MSELoss()
 
@@ -51,22 +48,16 @@ def train(model):
                 train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
                 for i, x in enumerate(train_dataloader):
                     # feed forward
-                    x = x.float()
-                    x = x.view(-1, SEQ_LEN, VEC_LEN)
+                    #x = x.float()
+                    #x = x.view(-1, SEQ_LEN, VEC_LEN)
                     x = x.to(device)
                     result = model(x)
-
-                    #result, mean, log_var = model(x)
-                    # # backpropagation
-                    # reconstruct_loss = criterion(result, x)
-                    # kl_div = -0.5 * torch.sum(1+log_var-mean.pow(2)-log_var.exp())
-                    # loss = reconstruct_loss+kl_div*LAMBDA
-                    # optimizer.zero_grad()
-                    # loss.backward()
-                    # optimizer.step()
                     
                     # backpropagation
-                    loss = criterion(result, x)
+                    float_x = x.float()/map_size
+                    #print(float_x)
+                    #print(result.shape)
+                    loss = criterion(result, float_x)
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -79,12 +70,12 @@ def train(model):
                 if(epoch == EPOCHS-1):
                     train_loss_list.append(loss.item())
             print('=== epoch: {}, loss: {} ==='.format(epoch+1,loss))
-            torch.save(model.state_dict(), "./weight.pth")
+        torch.save(model.state_dict(), "./weight.pth")
         print('=== Train Avg. Loss:',sum(train_loss_list)/len(train_loss_list),'===')
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
 
     # get threshold to distinguish normal and attack data
-    if(TRAIN_THRESHOLD == None):
+    if(MAX_LOSS == None):
         model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
         criterion_none = nn.MSELoss(reduction='none')
         model.eval()
@@ -97,14 +88,12 @@ def train(model):
                 loss_list = []
                 for i, x in enumerate(train_dataloader):
                     # feed forward
-                    x = x.float()
-                    x = x.view(-1, SEQ_LEN, VEC_LEN)
                     x = x.to(device)
                     result = model(x)
-                    #result,_,_ = model(x)
-
-                    # calculate loss
-                    loss_mat = criterion_none(result, x)
+                    
+                    # backpropagation
+                    float_x = x.float()/map_size
+                    loss_mat = criterion_none(result, float_x)
                     loss_mat = loss_mat.to('cpu')
                     for loss in loss_mat:
                         loss_1D = torch.flatten(loss).tolist()
@@ -112,12 +101,12 @@ def train(model):
                         loss_list.append(loss_sum)
                 loss_list.sort()
                 max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
-        threshold = max_loss*(THRESHOLD_RATIO)
-        return threshold
+        #threshold = max_loss*(THRESHOLD_RATIO)
+        return max_loss
     else:
-        return TRAIN_THRESHOLD
+        return MAX_LOSS
 
-def test(model,threshold):
+def test(model,threshold,map_size):
     # matrics
     fp = 0
     tp = 0
@@ -136,23 +125,22 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
             validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            suspicious_counter = 0 # new
-            #suspicious_counter = SuspiciousCounter(threshold) # old
+            suspicious_counter = 0 # for new detect algo.
+            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
             for i, x in enumerate(validation_dataloader):
                 # feed forward
-                x = x.float()
-                x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result = model(x)
-                #result,_,_ = model(x)
                 
-                # calculate loss
-                loss_mat = criterion_none(result, x)
+                # backpropagation
+                float_x = x.float()/map_size
+                loss_mat = criterion_none(result, float_x)
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D)
+
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
                     # if(len(suspicious_counter.queue) >= QUEUE_LEN):
@@ -161,7 +149,7 @@ def test(model,threshold):
                     #     is_attack = True
                     #     break
 
-                    # new
+                    ### New detection algo.
                     if(loss_sum > threshold):
                         suspicious_counter += 1
                     else:
@@ -184,23 +172,22 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
             attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
-            suspicious_counter = 0 # new
-            #suspicious_counter = SuspiciousCounter(threshold) # old
+            suspicious_counter = 0 # for new detect algo.
+            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
             for i, x in enumerate(attack_dataloader):
                 # feed forward
-                x = x.float()
-                x = x.view(-1, SEQ_LEN, VEC_LEN)
                 x = x.to(device)
                 result = model(x)
-                #result,_,_ = model(x)
                 
-                # calculate loss
-                loss_mat = criterion_none(result, x)
+                # backpropagation
+                float_x = x.float()/map_size
+                loss_mat = criterion_none(result, float_x)
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D)
+
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
                     # if(len(suspicious_counter.queue) >= QUEUE_LEN):
@@ -208,8 +195,8 @@ def test(model,threshold):
                     # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
                     #     is_attack = True
                     #     break
-                    
-                    # new
+
+                    ### New detection algo.
                     if(loss_sum > threshold):
                         suspicious_counter += 1
                     else:
@@ -321,15 +308,15 @@ def check_counter(model,theshold):
             plt.close()
             if(file_num == 5):
                 exit()
-            
+
 # Global variables
-NEED_PREPROCESS = False
-NEED_TRAIN = False
+NEED_PREPROCESS = True
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
-MODEL_WEIGHT_PATH = 'weight_CVE-2012-2122_AE_no_embed_seq10.pth'
+TARGET_DIR = 'CVE-2018-3760'
+MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 10
+SEQ_LEN = 20
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
@@ -342,7 +329,8 @@ SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosi
 THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
-TRAIN_THRESHOLD = None
+MAX_LOSS = None
+EMBED_DIM = 32
 #QUEUE_LEN = 30 # M in old detection algo.
 #LAMBDA = 1 # for VAE
 
@@ -364,14 +352,16 @@ if __name__ == '__main__':
 
     # model setting
     #model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
-    model = CAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
+    map_size = np.load(os.path.join(INPUT_DIR,'map_size.npy'))[0]
+    model = CAE(num_embed=map_size,embed_dim=EMBED_DIM,seq_len=SEQ_LEN,hidden_size=HIDDEN_SIZE).to(device)
 
     # train
-    threshold = train(model)
-    print('Threshold = {}'.format(threshold))
+    max_loss = train(model,map_size)
+    print('Max loss = {}'.format(max_loss))
+    threshold = max_loss * THRESHOLD_RATIO
 
     # test
-    test(model,threshold)
+    test(model,threshold,map_size)
 
     #check_counter(model,threshold)
 
