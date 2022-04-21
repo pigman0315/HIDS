@@ -81,7 +81,7 @@ def train(model):
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_MemAE"+".pth")
 
     # get threshold to distinguish normal and attack data
-    if(MAX_LOSS == None):
+    if(TRAIN_THRESHOLD == None):
         model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
         criterion_none = nn.MSELoss(reduction='none')
         model.eval()
@@ -106,11 +106,11 @@ def train(model):
                         loss_sum = sum(loss_1D)
                         loss_list.append(loss_sum)
             loss_list.sort()
-            max_loss = loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)]
-        #threshold = max_loss*(THRESHOLD_RATIO)
-        return max_loss
+            max_loss = loss_list[-1]
+        threshold = max_loss*(THRESHOLD_RATIO)
+        return threshold
     else:
-        return MAX_LOSS
+        return TRAIN_THRESHOLD
 
 def test(model,threshold):
     # matrics
@@ -126,13 +126,12 @@ def test(model,threshold):
 
     with torch.no_grad():
         npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
-        # for each file
-        for file_num, npy_file in enumerate(npy_list):
+        for file_num, npy_file in enumerate(npy_list): # for each file
             print('Testing {}'.format(npy_file))
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
             validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
             suspicious_counter = 0 # for new detect algo.
-            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
+            #suspicious_counter = SuspiciousCounter(threshold)  # for old detect algo.
             is_attack = False
             for i, x in enumerate(validation_dataloader):
                 # feed forward
@@ -158,7 +157,7 @@ def test(model,threshold):
 
                     ### New detection algo.
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
@@ -167,6 +166,32 @@ def test(model,threshold):
                         break
                 if(is_attack == True):
                     break
+
+            # Long period detection
+            # validation_data = np.load(os.path.join(INPUT_DIR,'test_normal_ordered_'+npy_file.split('_')[2]))
+            # validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
+            # map_syscall_pattern_cnt = {}
+            # seq_cnt = 0
+            # for i, x in enumerate(validation_dataloader):
+            #     # add up syscall_pattern_cnt
+            #     for single_x in x:
+            #         seq_cnt += 1
+            #         x_l = single_x.tolist()
+            #         if(0.835 not in x_l):
+            #             continue
+            #         x_h = hash(str(x_l))
+            #         if(x_h not in map_syscall_pattern_cnt.keys()):
+            #             map_syscall_pattern_cnt[x_h] = 1
+            #         else:
+            #             if(seq_cnt % 200 == 0):
+            #                 map_syscall_pattern_cnt[x_h] = 0
+            #             map_syscall_pattern_cnt[x_h] += 1
+            #             if(map_syscall_pattern_cnt[x_h] >= 10):
+            #                 print(x_l)
+            #                 is_attack = True
+            #                 break
+            #     if(is_attack == True):
+            #         break
             if(is_attack == True):
                 fp += 1
             else:
@@ -182,7 +207,24 @@ def test(model,threshold):
             suspicious_counter = 0 # for new detect algo.
             #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
+            map_syscall_pattern_cnt = {}
+            seq_cnt = 0
             for i, x in enumerate(attack_dataloader):
+                # add up syscall_pattern_cnt
+                for single_x in x:
+                    seq_cnt += 1
+                    x_l = single_x.tolist()
+                    x_h = hash(str(x_l))
+                    if(x_h not in map_syscall_pattern_cnt.keys()):
+                        map_syscall_pattern_cnt[x_h] = 1
+                    else:
+                        if(seq_cnt % 200 == 0):
+                            map_syscall_pattern_cnt[x_h] = 0
+                        map_syscall_pattern_cnt[x_h] += 1
+                        if(map_syscall_pattern_cnt[x_h] >= 10):
+                            is_attack = True
+                            break
+                    
                 # feed forward
                 x = x.float()
                 x = x.view(-1, SEQ_LEN, VEC_LEN)
@@ -206,7 +248,7 @@ def test(model,threshold):
 
                     ### New detection algo.
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
@@ -215,6 +257,32 @@ def test(model,threshold):
                         break
                 if(is_attack == True):
                     break
+
+            # Long period detection
+            # attack_data = np.load(os.path.join(INPUT_DIR,'test_attack_ordered_'+npy_file.split('_')[2]))
+            # attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
+            # map_syscall_pattern_cnt = {}
+            # seq_cnt = 0
+            # for i, x in enumerate(attack_dataloader):
+            #     # add up syscall_pattern_cnt
+            #     for single_x in x:
+            #         seq_cnt += 1
+            #         x_l = single_x.tolist()
+            #         if(0.835 not in x_l):
+            #             continue
+            #         x_h = hash(str(x_l))
+            #         if(x_h not in map_syscall_pattern_cnt.keys()):
+            #             map_syscall_pattern_cnt[x_h] = 1
+            #         else:
+            #             if(seq_cnt % 200 == 0):
+            #                 map_syscall_pattern_cnt[x_h] = 0
+            #             map_syscall_pattern_cnt[x_h] += 1
+            #             if(map_syscall_pattern_cnt[x_h] >= 10):
+            #                 print(x_l)
+            #                 is_attack = True
+            #                 break
+            #     if(is_attack == True):
+            #         break
             if(is_attack == True):
                 tp += 1
             else:
@@ -259,7 +327,7 @@ def check_counter(model,threshold):
     #                 loss_sum = sum(loss_1D)
     #                 ### New detection algo.
     #                 if(loss_sum > threshold):
-    #                     suspicious_counter += 1
+    #                     suspicious_counter += SC_ADD
     #                 else:
     #                     suspicious_counter -= 1
     #                     suspicious_counter = max(0,suspicious_counter)
@@ -295,7 +363,7 @@ def check_counter(model,threshold):
 
                     ### New detection algo.
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
@@ -309,28 +377,29 @@ def check_counter(model,threshold):
 
 # Global variables
 NEED_PREPROCESS = False
-NEED_TRAIN = False
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2017-7529'
+TARGET_DIR = 'Bruteforce_CWE-307'
 MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 10
-TRAIN_RATIO = 0.2 # ratio of training data in normal data
+TRAIN_RATIO = 0.5 # ratio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
-HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
+HIDDEN_SIZE = 64 # encoder's 1st layer hidden size 
 DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 2 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = None # percentile of reconstruction error in training data
 ENTROPY_LOSS_WEIGHT = 0.0002 # default: 0.0002
-MEM_DIM = 200
+MEM_DIM = 500
 SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
-MAX_LOSS = None # to speedup experiment
+TRAIN_THRESHOLD = None # to speedup experiment
+SC_ADD = 2.5 # suspicious counter add value
 #QUEUE_LEN = 10 # M in old detection algo.
 
 if __name__ == '__main__':  
@@ -353,9 +422,8 @@ if __name__ == '__main__':
     model = CMAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE,mem_dim=MEM_DIM,shrink_thres=SHRINK_THRESHOLD).to(device)
     
     # train
-    max_loss = train(model)
-    print('Max loss = {}'.format(max_loss))
-    threshold = max_loss*THRESHOLD_RATIO
+    threshold = train(model)
+    print('Threshold = {}'.format(threshold))
 
     # test
     test(model,threshold)

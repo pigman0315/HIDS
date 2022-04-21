@@ -27,17 +27,14 @@ class TimeDistributed(nn.Module): # implementation of TimeDistributed layer in K
         return y
 # Convolutional 1D AutoEncoder
 class CAE(nn.Module):
-    def __init__(self,num_embed,embed_dim=32,seq_len=20,hidden_size=256):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
         super(CAE,self).__init__()
+        self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
         self.seq_len = seq_len
         self.hidden_size = hidden_size
-        self.embed_dim = embed_dim
-        # embedding
-        self.embedding = nn.Embedding(num_embed,embed_dim,padding_idx=-1)
-
         # encoder
         self.encoder = nn.Sequential(
-            nn.Conv1d(in_channels=self.embed_dim, out_channels=self.hidden_size, kernel_size=3,padding=1),
+            nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
             nn.BatchNorm1d(self.hidden_size),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv1d(in_channels=self.hidden_size, out_channels=self.hidden_size//2, kernel_size=3,padding=1),
@@ -56,39 +53,29 @@ class CAE(nn.Module):
             nn.ConvTranspose1d(in_channels=self.hidden_size//2, out_channels=self.hidden_size, kernel_size=3,padding=1),
         )
         # fully-connected layer
-        self.fc = nn.Linear(hidden_size, embed_dim)
-        self.fc2 = nn.Linear(embed_dim,1)
-        self.tdd = TimeDistributed(self.fc2,batch_first=True)
+        self.fc = nn.Linear(hidden_size, vec_len)
+        self.tdd = TimeDistributed(self.fc,batch_first=True)
 
     def forward(self,x):
-        # embedding
-        embed_x = self.embedding(x)
-
         # encode
-        perm_x = embed_x.permute(0,2,1)
-        encode_x = self.encoder(perm_x)
+        x = x.permute(0,2,1)
+        x = self.encoder(x)
 
         # decode
-        out = self.decoder(encode_x)
+        out = self.decoder(x)
         out = out.permute(0,2,1)
 
         # fully-connect
-        #fc_out = self.fc(out) 
-        out = self.fc(out)
-        out = self.tdd(out)
-        out = out.squeeze(2)
+        fc_out = self.tdd(out) 
         
-        return out
+        return fc_out
 # Convolutional 1D Variational AutoEncoder
 class CVAE(nn.Module):
-    def __init__(self,num_embed,embed_dim=32,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
         super(CVAE,self).__init__()
         self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
         self.seq_len = seq_len
         self.hidden_size = hidden_size
-        # embedding 
-        self.embedding = nn.Embedding(num_embed,embed_dim,padding_idx=-1)
-
         # encoder
         self.encoder = nn.Sequential(
             nn.Conv1d(in_channels=self.vec_len, out_channels=self.hidden_size, kernel_size=3,padding=1),
@@ -117,16 +104,13 @@ class CVAE(nn.Module):
         self.tdd = TimeDistributed(self.fc,batch_first=True)
 
     def forward(self,x):
-        # embedding
-        embed_x = self.embedding(x)
-
         # encode
-        embed_x = embed_x.permute(0,2,1)
-        encode_x = self.encoder(embed_x)
+        x = x.permute(0,2,1)
+        x = self.encoder(x)
     
         # reparameter
-        mean = self.mean_fc(encode_x)
-        log_var = self.logv_fc(encode_x)
+        mean = self.mean_fc(x)
+        log_var = self.logv_fc(x)
         std = torch.exp(log_var/2)
         eps = torch.randn_like(std)
         z = mean + eps*std
@@ -141,14 +125,11 @@ class CVAE(nn.Module):
         return fc_out, mean, log_var
 # LSTM AutoEncoder
 class AE(nn.Module):
-    def __init__(self,num_embed,embed_dim=32,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
+    def __init__(self,seq_len=20,vec_len=1,hidden_size=256,dropout=0.0):
         super(AE,self).__init__()
         self.vec_len = vec_len # vec_len: length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
         self.seq_len = seq_len
         self.hidden_size = hidden_size
-        # embedding 
-        self.embedding = nn.Embedding(num_embed,embed_dim,padding_idx=-1)
-
         # encoder
         self.ec_lstm1 = nn.LSTM(input_size=vec_len,hidden_size=hidden_size,batch_first=True,dropout=dropout)
         self.ec_lstm2 = nn.LSTM(input_size=hidden_size,hidden_size=hidden_size//2,batch_first=True,dropout=dropout)
@@ -162,11 +143,8 @@ class AE(nn.Module):
         self.fc = nn.Linear(hidden_size, vec_len)
         self.tdd = TimeDistributed(self.fc,batch_first=True)
     def forward(self,x):
-        # embedding
-        embed_x = self.embedding(x)
-
         # encode
-        out, _ = self.ec_lstm1(embed_x)
+        out, _ = self.ec_lstm1(x)
         out = F.relu(out)
         #print(out.shape)
         out, _ = self.ec_lstm2(out)
