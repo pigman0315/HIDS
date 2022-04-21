@@ -20,7 +20,7 @@ class SuspiciousCounter:
     def push(self,anomaly_score):
         self.queue.append(anomaly_score)
         if(anomaly_score > self.threshold):
-            self.count += 1
+            self.count += SC_ADD
     def pop(self):
         if(self.queue[0] > self.threshold):
             self.count -= 1
@@ -108,10 +108,11 @@ def train(model):
                     loss_mat = loss_mat.to('cpu')
                     for loss in loss_mat:
                         loss_1D = torch.flatten(loss).tolist()
-                        loss_sum = sum(loss_1D)
+                        loss_sum = sum(loss_1D) / float(len(loss_1D))
                         loss_list.append(loss_sum)
                 loss_list.sort()
-                max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
+                #max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
+                max_loss = max(loss_list[-1],max_loss)
         threshold = max_loss*(THRESHOLD_RATIO)
         return threshold
     else:
@@ -152,7 +153,7 @@ def test(model,threshold):
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
                     # if(len(suspicious_counter.queue) >= QUEUE_LEN):
@@ -163,13 +164,14 @@ def test(model,threshold):
 
                     # new
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
                     if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+
                 if(is_attack == True):
                     break
             if(is_attack == True):
@@ -200,7 +202,7 @@ def test(model,threshold):
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
                     # if(len(suspicious_counter.queue) >= QUEUE_LEN):
@@ -211,7 +213,7 @@ def test(model,threshold):
                     
                     # new
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
@@ -266,7 +268,7 @@ def check_counter(model,theshold):
 
     #                 ### New detection algo.
     #                 if(loss_sum > threshold):
-    #                     suspicious_counter += 1
+    #                     suspicious_counter += SC_ADD
     #                 else:
     #                     suspicious_counter -= 1
     #                     suspicious_counter = max(0,suspicious_counter)
@@ -307,7 +309,7 @@ def check_counter(model,theshold):
 
                     ### New detection algo.
                     if(loss_sum > threshold):
-                        suspicious_counter += 1
+                        suspicious_counter += SC_ADD
                     else:
                         suspicious_counter -= 1
                         suspicious_counter = max(0,suspicious_counter)
@@ -319,31 +321,32 @@ def check_counter(model,theshold):
             plt.plot(sc_list)
             plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png'))
             plt.close()
-            if(file_num == 5):
-                exit()
+            # if(file_num == 20):
+            #     exit()
             
 # Global variables
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2012-2122'
-MODEL_WEIGHT_PATH = 'weight_CVE-2012-2122_AE_no_embed_seq10.pth'
+TARGET_DIR = 'Bruteforce_CWE-307'
+MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 10
-TRAIN_RATIO = 0.2 # ratio of training data in normal data
+TRAIN_RATIO = 0.5 # rlatio of training data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
-HIDDEN_SIZE = 256 # encoder's 1st layer hidden size 
+HIDDEN_SIZE = 64 # encoder's 1st layer hidden size 
 DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = 0.8 # percentile of reconstruction error in training data
+THRESHOLD_PERCENTILE = None # percentile of reconstruction error in training data
 TRAIN_THRESHOLD = None
-#QUEUE_LEN = 30 # M in old detection algo.
+SC_ADD = 2.5 # suspicious counter add value
+#QUEUE_LEN = 50 # M in old detection algo.
 #LAMBDA = 1 # for VAE
 
 if __name__ == '__main__':  
@@ -365,6 +368,12 @@ if __name__ == '__main__':
     # model setting
     #model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
     model = CAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
+    # model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
+    # l = torch.Tensor([0.0025, 0.25, 0.05, 0.12, 0.0175, 0.0075, 0.1625, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1])
+    # l = l.view(1,20,1).to(device)
+    # l.float()
+    # result = model(l)
+    # print(result.flatten())
 
     # train
     threshold = train(model)
