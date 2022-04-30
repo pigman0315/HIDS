@@ -84,18 +84,19 @@ def train(model):
         #torch.save(model.state_dict(), "./weight_"+TARGET_DIR+'_'+str(EPOCHS)+"_AE"+".pth")
 
     # get threshold to distinguish normal and attack data
-    if(TRAIN_THRESHOLD == None):
+    if(MAX_LOSS == None):
         model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
         criterion_none = nn.MSELoss(reduction='none')
         model.eval()
         max_loss = 0
+        npy_list = get_npy_list(type='valid_normal')
         with torch.no_grad():
             for npy_file in npy_list:
                 print('Scanning {}'.format(npy_file))
-                train_data = np.load(os.path.join(INPUT_DIR,npy_file))
-                train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE,shuffle=True)
+                data = np.load(os.path.join(INPUT_DIR,npy_file))
+                dataloader = DataLoader(data, batch_size=BATCH_SIZE,shuffle=False)
                 loss_list = []
-                for i, x in enumerate(train_dataloader):
+                for i, x in enumerate(dataloader):
                     # feed forward
                     x = x.float()
                     x = x.view(-1, SEQ_LEN, VEC_LEN)
@@ -111,12 +112,12 @@ def train(model):
                         loss_sum = sum(loss_1D) / float(len(loss_1D))
                         loss_list.append(loss_sum)
                 loss_list.sort()
-                #max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
-                max_loss = max(loss_list[-1],max_loss)
-        threshold = max_loss*(THRESHOLD_RATIO)
-        return threshold
+                max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
+                #max_loss = max(loss_list[-1],max_loss)
+        #threshold = max_loss*(THRESHOLD_RATIO)
+        return max_loss
     else:
-        return TRAIN_THRESHOLD
+        return MAX_LOSS
 
 def test(model,threshold):
     # matrics
@@ -326,13 +327,14 @@ def check_counter(model,theshold):
             
 # Global variables
 NEED_PREPROCESS = False
-NEED_TRAIN = False
+NEED_TRAIN = True
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'Bruteforce_CWE-307'
+TARGET_DIR = 'EPS_CWE-434'
 MODEL_WEIGHT_PATH = 'weight.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
-SEQ_LEN = 10
-TRAIN_RATIO = 0.5 # rlatio of training data in normal data
+SEQ_LEN = 6
+TRAIN_RATIO = 0.2 # rlatio of training data in normal data
+VALIDATION_RATIO = 0.2 # ratio of validation data in normal data
 EPOCHS = 10 # epoch
 LR = 0.0001  # learning rate
 BATCH_SIZE = 128 # batch size for training
@@ -341,11 +343,11 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
-SUSPICIOUS_THRESHOLD = SEQ_LEN # if suspicious count higher than this threshold then it is considered to be an attack file
-THRESHOLD_PERCENTILE = None # percentile of reconstruction error in training data
-TRAIN_THRESHOLD = None
-SC_ADD = 2.5 # suspicious counter add value
+THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+SUSPICIOUS_THRESHOLD = 8 # if suspicious count higher than this threshold then it is considered to be an attack file
+THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training data
+MAX_LOSS = None
+SC_ADD = 1 # suspicious counter add value
 #QUEUE_LEN = 50 # M in old detection algo.
 #LAMBDA = 1 # for VAE
 
@@ -361,6 +363,7 @@ if __name__ == '__main__':
         prep = Preprocess(seq_len=SEQ_LEN
         ,train_ratio=TRAIN_RATIO
         ,save_file_intvl=SAVE_FILE_INTVL
+        ,validation_ratio=VALIDATION_RATIO
         )
         prep.remove_npy(INPUT_DIR)
         prep.process_data(INPUT_DIR)
@@ -376,7 +379,8 @@ if __name__ == '__main__':
     # print(result.flatten())
 
     # train
-    threshold = train(model)
+    max_loss = train(model)
+    threshold = max_loss*THRESHOLD_RATIO
     print('Threshold = {}'.format(threshold))
 
     # test
