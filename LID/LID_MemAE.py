@@ -106,7 +106,7 @@ def train(model):
                     loss_mat = loss_mat.to('cpu')
                     for loss in loss_mat:
                         loss_1D = torch.flatten(loss).tolist()
-                        loss_sum = sum(loss_1D)
+                        loss_sum = sum(loss_1D) / float(len(loss_1D))
                         loss_list.append(loss_sum)
             loss_list.sort()
             max_loss = max(loss_list[int(len(loss_list)*THRESHOLD_PERCENTILE)],max_loss)
@@ -149,7 +149,7 @@ def test(model,threshold):
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
 
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
@@ -166,6 +166,7 @@ def test(model,threshold):
                     if(suspicious_counter > SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+
                 if(is_attack == True):
                     break
 
@@ -223,7 +224,7 @@ def test(model,threshold):
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
 
                     ### Old detection algo.
                     # suspicious_counter.push(loss_sum)
@@ -240,6 +241,7 @@ def test(model,threshold):
                     if(suspicious_counter > SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+
                 if(is_attack == True):
                     break
 
@@ -309,7 +311,7 @@ def check_counter(model,threshold):
                 loss_mat = loss_mat.to('cpu')
                 for loss in loss_mat:
                     loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D)
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
                     ### New detection algo.
                     if(loss_sum > threshold):
                         suspicious_counter += SC_ADD
@@ -324,48 +326,48 @@ def check_counter(model,threshold):
                 exit()
                 
     # test attack data
-    # npy_list = get_npy_list(type='test_attack') # get attack_*.npy file list
-    # with torch.no_grad():
-    #     for file_num, npy_file in enumerate(npy_list):
-    #         print('Testing {}'.format(npy_file))
-    #         attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
-    #         attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
-    #         suspicious_counter = 0             # for new detect algo.
-    #         sc_list = []
-    #         for i, x in enumerate(attack_dataloader):
-    #             # feed forward
-    #             x = x.float()
-    #             x = x.view(-1, SEQ_LEN, VEC_LEN)
-    #             x = x.to(device)
-    #             result,atten_weight = model(x)
+    npy_list = get_npy_list(type='test_attack') # get attack_*.npy file list
+    with torch.no_grad():
+        for file_num, npy_file in enumerate(npy_list):
+            print('Testing {}'.format(npy_file))
+            attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
+            attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
+            suspicious_counter = 0             # for new detect algo.
+            sc_list = []
+            for i, x in enumerate(attack_dataloader):
+                # feed forward
+                x = x.float()
+                x = x.view(-1, SEQ_LEN, VEC_LEN)
+                x = x.to(device)
+                result,atten_weight = model(x)
                 
-    #             # calculate loss
-    #             loss_mat = criterion_none(result, x)
-    #             loss_mat = loss_mat.to('cpu')
-    #             for loss in loss_mat:
-    #                 loss_1D = torch.flatten(loss).tolist()
-    #                 loss_sum = sum(loss_1D)
+                # calculate loss
+                loss_mat = criterion_none(result, x)
+                loss_mat = loss_mat.to('cpu')
+                for loss in loss_mat:
+                    loss_1D = torch.flatten(loss).tolist()
+                    loss_sum = sum(loss_1D) / float(len(loss_1D))
 
-    #                 ### New detection algo.
-    #                 if(loss_sum > threshold):
-    #                     suspicious_counter += SC_ADD
-    #                 else:
-    #                     suspicious_counter -= 1
-    #                     suspicious_counter = max(0,suspicious_counter)
-    #                 sc_list.append(suspicious_counter)
-    #         plt.plot(sc_list)
-    #         plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png')) 
-    #         plt.close()
-    #         if(file_num == 5):
-    #             exit()
+                    ### New detection algo.
+                    if(loss_sum > threshold):
+                        suspicious_counter += SC_ADD
+                    else:
+                        suspicious_counter -= 1
+                        suspicious_counter = max(0,suspicious_counter)
+                    sc_list.append(suspicious_counter)
+            plt.plot(sc_list)
+            plt.savefig(os.path.join(INPUT_DIR,npy_file[:-4]+'.png')) 
+            plt.close()
+            if(file_num == 5):
+                exit()
                     
 
 # Global variables
-NEED_PREPROCESS = True
-NEED_TRAIN = True
+NEED_PREPROCESS = False
+NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'log4j'
-MODEL_WEIGHT_PATH = 'weight.pth'
+TARGET_DIR = 'Bruteforce_CWE-307'
+MODEL_WEIGHT_PATH = 'weight_Bruteforce_CWE-307_MemAE_c64_seq6_m500_st0.1.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 6
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -386,7 +388,7 @@ MEM_DIM = 500
 SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
 MAX_LOSS = None # to speedup experiment
 SC_ADD = 1 # suspicious counter add value
-#QUEUE_LEN = SEQ_LEN*0.8 # M in old detection algo.
+#QUEUE_LEN = 10 # M in old detection algo.
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -411,7 +413,7 @@ if __name__ == '__main__':
     # train
     max_loss = train(model)
     threshold = max_loss*THRESHOLD_RATIO
-    print('Threshold = {}'.format(threshold))
+    print('Max loss = {}'.format(max_loss))
 
     # test
     test(model,threshold)
