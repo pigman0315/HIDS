@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 from LID_preprocess import Preprocess
 from LID_model import CAE,AE,VAE
 import re
+import time
 
 class SuspiciousCounter:
     def __init__(self,threshold):
@@ -131,54 +132,54 @@ def test(model,threshold):
     model.eval()
     criterion_none = nn.MSELoss(reduction='none') # loss function
 
-    with torch.no_grad():
-        npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
-        # for each file
-        for file_num, npy_file in enumerate(npy_list):
-            print('Testing {}'.format(npy_file))
-            validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
-            validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            #suspicious_counter = 0 # new
-            suspicious_counter = SuspiciousCounter(threshold) # old
-            is_attack = False
-            for i, x in enumerate(validation_dataloader):
-                # feed forward
-                x = x.float()
-                x = x.view(-1, SEQ_LEN, VEC_LEN)
-                x = x.to(device)
-                result = model(x)
-                #result,_,_ = model(x)
+    # with torch.no_grad():
+    #     npy_list = get_npy_list(type='test_normal') # get validation_*.npy file list
+    #     # for each file
+    #     for file_num, npy_file in enumerate(npy_list):
+    #         print('Testing {}'.format(npy_file))
+    #         validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
+    #         validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
+    #         suspicious_counter = 0 # new
+    #         #suspicious_counter = SuspiciousCounter(threshold) # old
+    #         is_attack = False
+    #         for i, x in enumerate(validation_dataloader):
+    #             # feed forward
+    #             x = x.float()
+    #             x = x.view(-1, SEQ_LEN, VEC_LEN)
+    #             x = x.to(device)
+    #             result = model(x)
+    #             #result,_,_ = model(x)
                 
-                # calculate loss
-                loss_mat = criterion_none(result, x)
-                loss_mat = loss_mat.to('cpu')
-                for loss in loss_mat:
-                    loss_1D = torch.flatten(loss).tolist()
-                    loss_sum = sum(loss_1D) / float(len(loss_1D))
-                    ### Old detection algo.
-                    suspicious_counter.push(loss_sum)
-                    if(len(suspicious_counter.queue) >= QUEUE_LEN):
-                        suspicious_counter.pop()
-                    if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
-                        is_attack = True
-                        break
+    #             # calculate loss
+    #             loss_mat = criterion_none(result, x)
+    #             loss_mat = loss_mat.to('cpu')
+    #             for loss in loss_mat:
+    #                 loss_1D = torch.flatten(loss).tolist()
+    #                 loss_sum = sum(loss_1D) / float(len(loss_1D))
+    #                 ### Old detection algo.
+    #                 # suspicious_counter.push(loss_sum)
+    #                 # if(len(suspicious_counter.queue) >= QUEUE_LEN):
+    #                 #     suspicious_counter.pop()
+    #                 # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
+    #                 #     is_attack = True
+    #                 #     break
 
-                    # new
-                    # if(loss_sum > threshold):
-                    #     suspicious_counter += SC_ADD
-                    # else:
-                    #     suspicious_counter -= 1
-                    #     suspicious_counter = max(0,suspicious_counter)
-                    # if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
-                    #     is_attack = True
-                    #     break
+    #                 # new
+    #                 if(loss_sum > threshold):
+    #                     suspicious_counter += SC_ADD
+    #                 else:
+    #                     suspicious_counter -= 1
+    #                     suspicious_counter = max(0,suspicious_counter)
+    #                 if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+    #                     is_attack = True
+    #                     break
 
-                if(is_attack == True):
-                    break
-            if(is_attack == True):
-                fp += 1
-            else:
-                tn += 1
+    #             if(is_attack == True):
+    #                 break
+    #         if(is_attack == True):
+    #             fp += 1
+    #         else:
+    #             tn += 1
                 
     # test attack data
     npy_list = get_npy_list(type='test_attack') # get attack_*.npy file list
@@ -187,8 +188,8 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
             attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
-            #suspicious_counter = 0 # new
-            suspicious_counter = SuspiciousCounter(threshold) # old
+            suspicious_counter = 0 # new
+            #suspicious_counter = SuspiciousCounter(threshold) # old
             is_attack = False
             for i, x in enumerate(attack_dataloader):
                 # feed forward
@@ -205,24 +206,24 @@ def test(model,threshold):
                     loss_1D = torch.flatten(loss).tolist()
                     loss_sum = sum(loss_1D) / float(len(loss_1D))
                     ### Old detection algo.
-                    suspicious_counter.push(loss_sum)
-                    if(len(suspicious_counter.queue) >= QUEUE_LEN):
-                        suspicious_counter.pop()
-                    if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
-                        is_attack = True
-                        break
-                    
-                    # new
-                    # if(loss_sum > threshold):
-                    #     suspicious_counter += SC_ADD
-                    # else:
-                    #     suspicious_counter -= 1
-                    #     suspicious_counter = max(0,suspicious_counter)
-                    # if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                    # suspicious_counter.push(loss_sum)
+                    # if(len(suspicious_counter.queue) >= QUEUE_LEN):
+                    #     suspicious_counter.pop()
+                    # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
                     #     is_attack = True
                     #     break
-                if(is_attack == True):
-                    break
+                    
+                    # new
+                    if(loss_sum > threshold):
+                        suspicious_counter += SC_ADD
+                    else:
+                        suspicious_counter -= 1
+                        suspicious_counter = max(0,suspicious_counter)
+                    if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                        is_attack = True
+                #         break
+                # if(is_attack == True):
+                #     break
             if(is_attack == True):
                 tp += 1
             else:
@@ -284,7 +285,7 @@ def check_counter(model,theshold):
             if(file_num == 5):
                 exit()
                 
-    # test attack data
+    #test attack data
     # npy_list = get_npy_list(type='test_attack') # get attack_*.npy file list
     # with torch.no_grad():
     #     for file_num, npy_file in enumerate(npy_list):
@@ -329,8 +330,8 @@ def check_counter(model,theshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'CVE-2014-0160'
-MODEL_WEIGHT_PATH = 'weight_CVE-2014-0160_AE_c64_seq6.pth'
+TARGET_DIR = 'log4j'
+MODEL_WEIGHT_PATH = 'weight_dir_seq6/weight_log4j_AE_c64_seq6.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 6
 TRAIN_RATIO = 0.2 # rlatio of training data in normal data
@@ -343,12 +344,12 @@ DROP_OUT = 0.0
 VEC_LEN = 1 # length of syscall representation vector, e.g., read: 0 (after embedding might be read: [0.1,0.03,0.2])
 LOG_INTERVAL = 1000 # log interval of printing message
 SAVE_FILE_INTVL = 50 # saving-file interval for training (prevent memory explosion)
-THRESHOLD_RATIO = 5 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
+THRESHOLD_RATIO = 1.1 # if the loss of input is higher than theshold*(THRESHOLD_RATIO), then it is considered to be suspicious
 SUSPICIOUS_THRESHOLD = 8 # if suspicious count higher than this threshold then it is considered to be an attack file
 THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training data
-MAX_LOSS = None
+MAX_LOSS = 0.0002603160198001812
 SC_ADD = 1 # suspicious counter add value
-QUEUE_LEN = 20 # M in old detection algo.
+#QUEUE_LEN = 20 # M in old detection algo.
 #LAMBDA = 1 # for VAE
 
 if __name__ == '__main__':  
@@ -357,6 +358,9 @@ if __name__ == '__main__':
     device = torch.device(device = torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     print("Device:",device)
     print("Currently using GPU:",torch.cuda.get_device_name(0))
+    
+
+    start = time.time()
     
     # preprocess row data into .npy file
     if(NEED_PREPROCESS):
@@ -367,6 +371,9 @@ if __name__ == '__main__':
         )
         prep.remove_npy(INPUT_DIR)
         prep.process_data(INPUT_DIR)
+    
+    end = time.time()
+    print('Prepocessing time:',format(end-start))
 
     # model setting
     #model = VAE(seq_len=SEQ_LEN,vec_len=VEC_LEN,hidden_size=HIDDEN_SIZE).to(device)
@@ -383,10 +390,10 @@ if __name__ == '__main__':
     threshold = max_loss*THRESHOLD_RATIO
     print('Max loss = {}'.format(max_loss))
 
+    
     # test
-    test(model,threshold)
-
-    #check_counter(model,threshold)
+    #test(model,threshold)
+    check_counter(model,threshold)
 
 
 

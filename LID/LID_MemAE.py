@@ -134,8 +134,8 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             validation_data = np.load(os.path.join(INPUT_DIR,npy_file))
             validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            suspicious_counter = 0 # for new detect algo.
-            #suspicious_counter = SuspiciousCounter(threshold)  # for old detect algo.
+            #suspicious_counter = 0 # for new detect algo.
+            suspicious_counter = SuspiciousCounter(threshold)  # for old detect algo.
             is_attack = False
             for i, x in enumerate(validation_dataloader):
                 # feed forward
@@ -152,49 +152,23 @@ def test(model,threshold):
                     loss_sum = sum(loss_1D) / float(len(loss_1D))
 
                     ### Old detection algo.
-                    # suspicious_counter.push(loss_sum)
-                    # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
-                    #     is_attack = True
-                    #     break
-
-                    ### New detection algo.
-                    if(loss_sum > threshold):
-                        suspicious_counter += SC_ADD
-                    else:
-                        suspicious_counter -= 1
-                        suspicious_counter = max(0,suspicious_counter)
-                    if(suspicious_counter > SUSPICIOUS_THRESHOLD):
+                    suspicious_counter.push(loss_sum)
+                    if(suspicious_counter.count >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
 
+                    ### New detection algo.
+                    # if(loss_sum > threshold):
+                    #     suspicious_counter += SC_ADD
+                    # else:
+                    #     suspicious_counter -= 1
+                    #     suspicious_counter = max(0,suspicious_counter)
+                    # if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                    #     is_attack = True
+                    #     break
+
                 if(is_attack == True):
                     break
-
-            # Long period detection
-            # validation_data = np.load(os.path.join(INPUT_DIR,'test_normal_ordered_'+npy_file.split('_')[2]))
-            # validation_dataloader = DataLoader(validation_data, batch_size=BATCH_SIZE,shuffle=False)
-            # map_syscall_pattern_cnt = {}
-            # seq_cnt = 0
-            # for i, x in enumerate(validation_dataloader):
-            #     # add up syscall_pattern_cnt
-            #     for single_x in x:
-            #         seq_cnt += 1
-            #         x_l = single_x.tolist()
-            #         if(0.835 not in x_l):
-            #             continue
-            #         x_h = hash(str(x_l))
-            #         if(x_h not in map_syscall_pattern_cnt.keys()):
-            #             map_syscall_pattern_cnt[x_h] = 1
-            #         else:
-            #             if(seq_cnt % 200 == 0):
-            #                 map_syscall_pattern_cnt[x_h] = 0
-            #             map_syscall_pattern_cnt[x_h] += 1
-            #             if(map_syscall_pattern_cnt[x_h] >= 10):
-            #                 print(x_l)
-            #                 is_attack = True
-            #                 break
-            #     if(is_attack == True):
-            #         break
             if(is_attack == True):
                 fp += 1
             else:
@@ -207,8 +181,8 @@ def test(model,threshold):
             print('Testing {}'.format(npy_file))
             attack_data = np.load(os.path.join(INPUT_DIR,npy_file))
             attack_dataloader = DataLoader(attack_data, batch_size=BATCH_SIZE,shuffle=False)
-            suspicious_counter = 0 # for new detect algo.
-            #suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
+            #suspicious_counter = 0 # for new detect algo.
+            suspicious_counter = SuspiciousCounter(threshold) # for old detect algo.
             is_attack = False
             map_syscall_pattern_cnt = {}
             seq_cnt = 0
@@ -227,20 +201,20 @@ def test(model,threshold):
                     loss_sum = sum(loss_1D) / float(len(loss_1D))
 
                     ### Old detection algo.
-                    # suspicious_counter.push(loss_sum)
-                    # if(suspicious_counter.count > SUSPICIOUS_THRESHOLD):
-                    #     is_attack = True
-                    #     break
-
-                    ### New detection algo.
-                    if(loss_sum > threshold):
-                        suspicious_counter += SC_ADD
-                    else:
-                        suspicious_counter -= 1
-                        suspicious_counter = max(0,suspicious_counter)
-                    if(suspicious_counter > SUSPICIOUS_THRESHOLD):
+                    suspicious_counter.push(loss_sum)
+                    if(suspicious_counter.count >= SUSPICIOUS_THRESHOLD):
                         is_attack = True
                         break
+
+                    ### New detection algo.
+                    # if(loss_sum > threshold):
+                    #     suspicious_counter += SC_ADD
+                    # else:
+                    #     suspicious_counter -= 1
+                    #     suspicious_counter = max(0,suspicious_counter)
+                    # if(suspicious_counter >= SUSPICIOUS_THRESHOLD):
+                    #     is_attack = True
+                    #     break
 
                 if(is_attack == True):
                     break
@@ -366,8 +340,8 @@ def check_counter(model,threshold):
 NEED_PREPROCESS = False
 NEED_TRAIN = False
 ROOT_DIR = '../../LID-DS/'
-TARGET_DIR = 'Bruteforce_CWE-307'
-MODEL_WEIGHT_PATH = 'weight_Bruteforce_CWE-307_MemAE_c64_seq6_m500_st0.1.pth'
+TARGET_DIR = 'log4j'
+MODEL_WEIGHT_PATH = 'weight_dir_seq6/weight_log4j_MemAE_c64_seq6_m500_st0.1.pth'
 INPUT_DIR = ROOT_DIR+TARGET_DIR
 SEQ_LEN = 6
 TRAIN_RATIO = 0.2 # ratio of training data in normal data
@@ -386,9 +360,9 @@ THRESHOLD_PERCENTILE = 0.99 # percentile of reconstruction error in training dat
 ENTROPY_LOSS_WEIGHT = 0.0002 # default: 0.0002
 MEM_DIM = 500
 SHRINK_THRESHOLD = 0.1/MEM_DIM # 1/MEM_DIM ~ 3/MEM_DIM
-MAX_LOSS = None # to speedup experiment
+MAX_LOSS = 1.8867864561400438e-05 # to speedup experiment
 SC_ADD = 1 # suspicious counter add value
-#QUEUE_LEN = 10 # M in old detection algo.
+#QUEUE_LEN = 16 # M in old detection algo.
 
 if __name__ == '__main__':  
     # Check if using GPU
@@ -416,9 +390,9 @@ if __name__ == '__main__':
     print('Max loss = {}'.format(max_loss))
 
     # test
-    test(model,threshold)
+    #test(model,threshold)
 
-    #check_counter(model,threshold)
+    check_counter(model,threshold)
 
 
 
